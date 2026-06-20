@@ -1,194 +1,256 @@
 ---
 name: nomos-clearing-calls
-description: Use when the user asks Hermes to resolve Nomos hackathon clearing-call cases by reading structured case data, configuring or instructing the Vapi voice agent, placing/simulating the German clearing call, extracting the real diagnosis and next action, and writing the result back through Nomos MCP tools.
-version: 1.1.0
+description: Use when the user mentions Nomos case numbers, MaLo IDs, meter numbers, German grid-operator/supplier signup issues, asks what to do with a Nomos case, or requests a Nomos clearing call. Defines case context, German call conduct, MCP update rules, and the standard Vapi call/simulation procedure.
+version: 1.2.1
 author: Bruno + Hermes Agent
 license: MIT
 metadata:
   hermes:
-    tags: [nomos, vapi, mcp, voice-agent, clearing-calls, energy-market, case-resolution]
-    related_skills: [voice-agent-orchestration, voice-agent-platforms, native-mcp]
+    tags: [nomos, malo, case-management, energy-market, mcp, vapi, german]
+    related_skills: [voice-agent-orchestration, voice-agent-platforms, native-mcp, telephony]
 ---
 
 # Nomos Clearing Calls
 
-## Overview
+## Purpose
 
-This skill is for the Nomos voice-agent challenge workflow. It is **not only a MaLo correction skill**. A future Hermes agent should use it whenever Bruno asks to clear, resolve, call about, simulate, or update a stuck Nomos signup case.
+Use this skill to understand references to Nomos cases, MaLo numbers, meter numbers, suppliers, grid operators, German market-communication terms, or stuck electricity signup cases, and to run the standard Nomos clearing-call workflow when the user authorizes a call or simulation.
 
-Hermes is the workflow orchestrator: it reads case context, chooses the scenario objective, prepares the Vapi assistant/call, validates the returned transcript or structured report, and writes the outcome back through Nomos MCP tools when they exist.
+This skill is deliberately broader than “correct the MaLo”. A Nomos clearing case may involve MaLo-Ident, a bounced Netzanmeldung, a silent registration after APERAK, a Kündigung/old-supplier blocker, another registration already in progress, or an inconclusive operator escalation. The job is to identify the case type, get the real diagnosis and next action, and update Nomos with only confirmed facts.
 
-Vapi is the real-time German voice agent: it handles spoken conversation, interruption behavior, DTMF/keypad handling, and the actual call/simulation session.
+Hermes is the workflow orchestrator: read case context, classify the scenario, prepare the prompt/call, inspect the returned transcript or structured report, and update Nomos through MCP tools. Vapi/telephony is the real-time voice layer: spoken German conversation, interruptions, DTMF/keypad, and call lifecycle.
 
-Default challenge shape: a structured case file describes a stuck electricity signup. The voice agent calls a German market participant, explains the case, gets the real reason and next step, and Hermes stores a clean back-office result. The win is **case movement**, not just a corrected MaLo or a pleasant transcript.
+For phone calls, use the Nomos-specific Vapi/`telephony.py ai-call` procedure documented below together with the `telephony` skill. Do not bypass the helper with ad-hoc Vapi API calls unless the helper is broken or stale.
 
 ## When to Use
 
-Use this skill when the user asks things like:
+Load this skill when the user says things like:
 
-- "resolve CASE-A"
-- "call about CASE-B"
-- "get the correct MaLo for CASE-C"
-- "clear this Nomos case"
-- "have the Vapi agent call the grid operator / supplier / back office"
-- "run the Nomos clearing-call simulation"
-- "write the call outcome back into Nomos"
-- "trigger the next action after the call"
-- "make the skill cover all challenge scenarios, not just MaLo"
+- `case NM26-L811`
+- `case number CASE-A`
+- `wrong MaLo number`
+- `confirm the MaLo`
+- `meter number`
+- `grid operator`
+- `supplier switch`
+- `registration is stuck/rejected/silent`
+- `Kündigung`, `Netzanmeldung`, `MaLo-Ident`, `Lieferantenwechsel`, `Vorgangsnummer`, or `APERAK`
+- `update the Nomos case`
+- `run a Nomos clearing call`
+- `have the Vapi agent call the operator/back office`
 
-Do **not** use this for generic Vapi architecture advice unless the user is specifically working on Nomos clearing calls. For broad voice-platform design, load/use `voice-agent-orchestration` or `voice-agent-platforms` instead.
+For generic Vapi/provider setup, raw Vapi API schemas, simulations unrelated to Nomos, or provider status quirks, use `voice-agent-orchestration`, `voice-agent-platforms`, and/or `telephony`. For live Nomos case data, use MCP tools.
 
-## Source-of-Truth Hierarchy
+## Domain Shorthand
 
-When executing this workflow, prefer sources in this order:
+| Term the user may use | Meaning |
+| --- | --- |
+| `case`, `case number`, `case ID` | A Nomos case record, usually retrievable through `mcp_nomos_get_case` or `mcp_nomos_get_case_summary`. |
+| `MaLo`, `MaLo-ID`, `Malo`, `market-location ID`, `Marktlokation` | The German electricity market-location identifier, usually an 11-digit number. |
+| `wrong MaLo` | The stored market-location ID may not match the meter/address/delivery point. Confirm before changing it. |
+| `meter number`, `Zählernummer` | The physical/electronic meter identifier. Often disambiguates buildings with multiple delivery points. |
+| `grid operator`, `Netzbetreiber`, `VNB` | The network/grid company that may identify or confirm the market location and registration status. |
+| `supplier`, `Lieferant` | Usually Nomos GmbH unless the case says otherwise. |
+| `Lieferantenwechsel` | Supplier switch. Often the correct IVR/menu category for a Nomos signup issue. |
+| `MaLo-Ident` | Market-location identification step before registration. |
+| `Netzanmeldung` | Grid registration of Nomos as supplier for the delivery point. |
+| `Kündigung` | Cancellation/termination of the old supplier contract, which can block the switch. |
+| `APERAK` | Automated receipt/rejection message; an APERAK without confirmation can still mean a stuck case. |
+| `Vorgangsnummer` | Ticket/reference number. Useful evidence, but not the whole win. |
+| `Baustromzähler`, `Zähler ausgebaut`, `neue Anlage` | Temporary construction meter, meter removed, new installation/connection needed. Often indicates the old MaLo cannot be used. |
 
-1. **Live Nomos MCP tools** in the active Hermes session.
-   - Tool names may be prefixed like `mcp_nomos_*`, `mcp_fake_system_*`, or the server name Bruno configured.
-   - Current fake-system tools may be customer-oriented (`list_customers`, `get_customer`, `update_customer`) until case-specific tools are added.
-2. **Explicit case context provided by Bruno** in the current conversation.
-3. **Challenge fixtures and docs** from `https://github.com/nomos-energy/voice-agent` when needed for scenario semantics.
-   - `README.md` defines the challenge and the three signup stages.
-   - `fixtures.json` defines practice cases CASE-A, CASE-B, CASE-C.
-   - `CHEATSHEET.md` defines German terms and non-negotiable rules.
-   - `recordings/*.md` shows good/messy clearing-call transcripts.
-4. **This skill's references**:
-   - `references/nomos-challenge-scenarios.md`
-   - `references/nomos-mcp-expectations.md`
-5. **Never invent missing case facts, phone numbers, call results, reference numbers, corrected identifiers, or backend updates.**
+## Source of Truth
 
-## Scenario Taxonomy: Classify Before Calling
+When a case number is mentioned:
 
-Before preparing the Vapi prompt, classify the case. Do not assume every case wants a corrected MaLo.
+1. Retrieve the case through Nomos MCP if tools are available.
+   - Prefer `mcp_nomos_get_case_summary(case_id)` when you need both current case details and latest call log.
+   - Use `mcp_nomos_get_case(case_id)` when only the structured case is needed.
+   - Use `mcp_nomos_list_cases` only to find/confirm candidate case IDs.
+2. Treat explicit details from the user as authoritative if they override or clarify the case record.
+3. Use challenge fixtures/docs only for scenario semantics or synthetic test cases, not as a substitute for live MCP data when the user names a live case.
+4. Do not invent missing case facts, phone numbers, MaLo IDs, reference numbers, call outcomes, or backend updates.
+5. If case lookup fails, say so and ask for the missing context rather than guessing.
 
-| Scenario | Typical symptom | Call objective | A cleared result looks like | Likely next action |
-| --- | --- | --- | --- | --- |
-| **MaLo-Ident / market-location identification** | Automated identification found no/equivocal/wrong MaLo; address ambiguous; meter number disambiguates. | Get the correct market-location number or learn why none exists. | Correct MaLo read back digit-by-digit, or a documented reason no MaLo exists. | Store corrected MaLo and trigger/resubmit registration; or contact customer / wait for operator if unresolved. |
-| **Netzanmeldung bounced** | Registration rejected, e.g. `Marktlokation nimmt nicht teil`. | Find the real reason behind the rejection and the actionable next step. | Diagnosis such as removed temporary meter / dead MaLo / new Anlage required; not necessarily a ticket number. | Contact customer, create new installation flow, resubmit only if appropriate. |
-| **Silent/stuck registration** | APERAK or receipt received, but no confirmation and deadline passed. | Confirm receipt, processing state, whether resubmission is needed, and tracking reference. | Operator confirms it is in process, gives Vorgangsnummer, confirms no resubmission. | Wait/track with reference; maybe follow up by email/date. |
-| **Kündigung / previous supplier cancellation** | Old supplier did not answer or rejected cancellation. | Learn whether the old supplier received/processed the cancellation and who must act. | Reason for stall, whether Nomos/customer/old supplier must do anything, reference if available. | Reminder to old supplier, customer cancellation request, email-agent handoff, or retry process. |
-| **Another process already in progress** | Registration rejected because another supplier/process is already active. | Find which process blocks Nomos and what must happen before Nomos can continue. | Clear blocker and owner; not a fake registration success. | Wait, contact customer, coordinate with previous supplier, or schedule retry. |
-| **Inconclusive / escalated clearing case** | Clerk cannot resolve immediately, puts caller on hold, escalates internally, promises callback. | Capture reference, owning department, promised next update, and exact unresolved question. | Vorgangsnummer + promised follow-up window + current facts. | Log and wait/follow-up; do not bluff a resolved MaLo/status. |
+## What to Extract From a Case
 
-For the current public fixtures:
+For any Nomos case, identify these fields if present:
 
-- `CASE-A` = Netzanmeldung bounced: `Marktlokation nimmt nicht teil`; expected win is real reason and next step, e.g. meter was a Baustromzähler and the connection needs a new Anlage.
-- `CASE-B` = silent/stuck registration: APERAK/receipt but no confirmation; expected win is confirmation in process, Vorgangsnummer, and no resubmission.
-- `CASE-C` = MaLo-Ident / wrong market-location: building has several delivery points; expected win is corrected MaLo read back digit-by-digit and registration with that identifier.
+- case ID
+- supplier / Lieferant
+- grid operator / market participant / back-office target
+- current MaLo ID
+- meter number / Zählernummer
+- delivery address / Lieferstelle
+- registration date and requested supply start
+- status text / symptom / current rejection
+- goal
+- latest call result, if any
+- current next action
 
-## Operational Workflow
+Then classify the scenario before prompting or calling.
 
-### 1. Discover available tools and case data
+## Interpreting Common Case Types
 
-1. Look for Nomos MCP tools in the active tool list.
-2. If a case key is given, retrieve that case through MCP if possible.
-3. If tools are only customer-oriented, search/list customers and inspect `notes`/`status`/fields for the case key or structured case JSON.
-4. If no MCP tools are available, state that the Nomos MCP server/config is not connected. Continue only if Bruno explicitly provided enough synthetic case context and a safe challenge/test call target.
-5. If a case lookup fails, stop and report the failure; do not fabricate a fixture.
-6. Verify the case has enough information to call/simulate:
-   - case id/key
-   - process step (`malo_ident`, `kuendigung`, `netzanmeldung`, or unknown)
-   - symptom/status text
-   - relevant identifiers: MaLo if present, meter number if present, reference numbers if present
-   - address/delivery location
-   - date sent/requested supply start when relevant
-   - call target: grid operator, metering operator, previous supplier, market back office, or provided clerk-agent/simulation endpoint
-   - target phone/simulation route if a real call or platform call is requested
+| Situation | What it usually means | What a useful resolution contains | German call focus |
+| --- | --- | --- | --- |
+| Wrong or uncertain MaLo / MaLo-Ident | Stored market-location ID may not match meter/address, or automated ID failed. | Correct MaLo, or a documented reason no MaLo is available yet, plus next action. | Use address + Zählernummer; read MaLo digit-by-digit; ask whether to submit with the corrected Marktlokation. |
+| Registration rejected/bounced / Netzanmeldung | A submitted registration failed, e.g. `Marktlokation nimmt nicht teil`. | Actual rejection reason and whether resubmission, customer action, or grid-operator action is needed. | Ask whether MaLo is invalid/dead, Zähler was ausgebaut, Baustromzähler, neue Anlage, or another registration blocks it. |
+| Silent/stuck registration | Receipt/APERAK may exist but no confirmation arrived. | Whether it was received, current processing status, reference number if any, and whether resubmission is needed. | Ask if the Anmeldung is received and valid, why it stalled, whether Nomos must resend, and expected processing date. |
+| Previous-supplier cancellation / Kündigung | Old supplier cancellation may be blocking the switch. | Whether cancellation was received/accepted/rejected and who owns the next step. | Ask whether old supplier, customer, or Nomos must act; capture reference and follow-up channel. |
+| Competing registration/process | Another supplier or market process is already active. | Which process blocks Nomos and what must happen before Nomos can continue. | Ask what process is active, who owns it, whether waiting/customer clarification is required, and when retry makes sense. |
+| Escalated/inconclusive | The other party cannot resolve immediately. | Reference number, owning department/person, promised follow-up window, and exact unresolved question. | Stay patient through hold music; capture Zuarbeit/Fachbereich, Vorgangsnummer, and promised Rückmeldung. |
 
-### 2. Classify the case and define the exact call goal
+Do not force every case into “get corrected MaLo.” A corrected MaLo matters only when the case actually concerns market-location identification or a wrong market-location ID.
 
-Use the taxonomy above. The Vapi agent's objective must be scenario-specific.
+## If the User Asks for a Call
 
-Examples:
+Nomos outbound calls should use the local `telephony` skill helper with Vapi. Load/use the `telephony` skill for provider setup and safety rules. Do not inspect or grep the helper implementation just to learn how to place the call unless the documented command fails or the skill appears stale.
 
-- For a bounced registration, ask for the true rejection reason and next step; do not over-focus on obtaining a new MaLo unless the clerk says the MaLo is wrong.
-- For a silent registration, ask whether the registration was received/processed, whether resubmission is needed, and get a Vorgangsnummer.
-- For MaLo-Ident, use the address and meter number to obtain/confirm the correct MaLo, then read it back digit-by-digit.
-- For Kündigung, target the old supplier/cancellation context and capture whether Nomos, the customer, or the previous supplier owns the next action.
-- For an inconclusive escalation, capture the reference number, owner, promised update timing, and the exact unresolved question.
+### Authorization and single-call discipline
 
-### 3. Build the Vapi assistant prompt
+One explicit user authorization covers exactly **one** outbound call attempt to **one** target number for **one** case.
 
-Use the bundled base prompt:
+- After starting a real call, record the Vapi call ID before doing anything else.
+- Poll/fetch status for that same call ID until the provider reports a terminal state such as `ended`, `completed`, `failed`, `busy`, `no-answer`, `voicemail`, `silence-timed-out`, or an explicit provider error.
+- Do **not** place a second call just because the status is `queued`, `ringing`, `in-progress`, missing a transcript, missing a summary, ended by customer, or because the provider UI/API lags.
+- If the call fails, is missed, is silent, reaches voicemail, is ended by the customer, or produces no usable transcript, stop and ask the user for fresh explicit authorization before retrying.
+- Before any retry, state the previous call ID and final status so duplicate-call risk is visible.
+
+### Standard helper command
+
+Use the installed helper script, normally:
+
+```bash
+SCRIPT="/home/bruno/.hermes/profiles/vapihermes/skills/productivity/telephony/scripts/telephony.py"
+VAPI_ENABLE_SSML_PARSING="${VAPI_ENABLE_SSML_PARSING:-true}" \
+VAPI_VOICE_SPEED="${VAPI_VOICE_SPEED:-0.85}" \
+VAPI_11LABS_LANGUAGE="${VAPI_11LABS_LANGUAGE:-de}" \
+python3 "$SCRIPT" ai-call '<E164 phone number>' '<task prompt>' \
+  --provider vapi \
+  --first-sentence '<short German greeting mentioning Nomos and the case ID>' \
+  --max-duration 5
+```
+
+If the path changes, locate it with:
+
+```bash
+SCRIPT="$(find ~/.hermes/profiles/vapihermes/skills ~/.hermes/skills -path '*/telephony/scripts/telephony.py' -print -quit 2>/dev/null)"
+```
+
+The call command returns a Vapi `call_id`. Poll that exact call:
+
+```bash
+python3 "$SCRIPT" ai-status '<call_id>' --provider vapi
+```
+
+### Vapi voice settings for identifier pacing
+
+Before a call that will read MaLo IDs, meter numbers, phone numbers, or reference numbers, verify the Vapi voice settings:
+
+```bash
+python3 "$SCRIPT" diagnose
+```
+
+For the standard `telephony.py` helper with ElevenLabs (`voice_provider: 11labs`), prefer these settings in `~/.hermes/.env` or the Hermes config:
+
+```env
+VAPI_ENABLE_SSML_PARSING=true
+VAPI_VOICE_SPEED=0.85
+VAPI_11LABS_LANGUAGE=de
+```
+
+Optional, if you need to pin a known SSML-capable ElevenLabs model:
+
+```env
+VAPI_11LABS_MODEL=eleven_turbo_v2_5
+```
+
+Do not rely on the LLM prompt alone for number pacing. The prompt should spell or chunk identifiers, and the voice layer should be configured to honor SSML pauses. If SSML parsing or speed control is not available for the selected voice/provider, the prompt must fall back to German digit words and short turns.
+
+Vapi voice input formatting is enabled by default. It keeps `<break>` and `<spell>` tags, but may remove other angle-bracket tags before TTS. Therefore, with the standard helper, use the **inline identifier SSML** mode:
+
+- Use German digit words plus `<break time="350ms" />` to `<break time="500ms" />` between groups.
+- Use `<spell>...</spell>` only for alphanumeric chunks that must be read character-by-character.
+- Do not use `<speak>`, `<prosody>`, `<say-as>`, `<emphasis>`, `<phoneme>`, or `<sub>` in normal live-call turns unless the assistant's `voice.chunkPlan.formatPlan` is explicitly configured to pass those tags through and the provider supports them.
+
+If directly editing a persistent Vapi assistant and full SSML is required, configure both layers:
+
+1. Voice provider: enable SSML parsing, slow the voice if supported, and use a model that supports the chosen SSML tags.
+2. Vapi `assistant.voice.chunkPlan.formatPlan`: either disable formatting for raw SSML or use `formattersEnabled` so `removeAngleBrackets` does not strip full SSML tags.
+3. Prompt: write all numbers already normalized for speech, because disabling voice formatting can make raw numbers, dates, and emails sound worse.
+
+For these Nomos calls, full SSML is rarely needed. Inline `<break>`/`<spell>` plus German digit words is the default because it survives Vapi's formatter and solves the "numbers read too quickly" failure mode.
+
+### German first sentence
+
+Use a concise German first sentence that discloses AI status to the first human and identifies Nomos/case context. Example:
+
+```text
+Guten Tag, ich bin eine künstliche Intelligenz von Nomos GmbH und rufe zu dem Stromanmeldungsfall <case_id> an. Können Sie mir kurz bei der Klärung helfen?
+```
+
+Do not disclose AI status to an IVR/recorded menu. For IVR, choose DTMF only when the recorded menu explicitly asks for keypad input.
+
+### Task prompt shape
+
+For a call about a Nomos case, provide the voice/call agent with concise case context only. Use German instructions for the spoken behavior and German back-office vocabulary:
+
+```markdown
+You are calling <target/grid operator> regarding a Nomos GmbH electricity supply registration case.
+Speak German during the call.
+
+Case ID: <case_id>
+Supplier: <supplier>
+Grid/operator/target: <grid_operator or call target>
+Current MaLo ID: <malo_id if any>
+Meter number / Zählernummer: <meter_number if any>
+Delivery address / Lieferstelle: <address if any>
+Registration date / Anmeldung: <registration_date if any>
+Requested supply start / Lieferbeginn: <supply_start if any>
+Status/symptom: <status_text/symptom>
+Goal: <what must be confirmed or obtained>
+Information to obtain: <specific unknowns>
+
+Call instructions:
+- Speak German only, naturally and briefly.
+- Speak slowly and clearly. Clarity is more important than speed.
+- First words to a human: disclose that you are an AI from Nomos GmbH.
+- Mention the case ID and the specific process step: MaLo-Ident, Netzanmeldung, Kündigung, Lieferantenwechsel, or Marktkommunikation.
+- Offer relevant identifiers proactively, but not all in one breath. Use one important identifier per sentence or turn.
+- Preferred order: case ID, MaLo/MaLo-ID, Zählernummer, Lieferstelle, dates.
+- Default voice output mode: inline identifier SSML. Use German digit words and short `<break>` tags for critical identifiers.
+- Read MaLo IDs digit-by-digit or in short groups with pauses, for example: "Die MaLo-ID lautet: acht, vier, fünf <break time=\"400ms\" /> sieben, sieben, eins <break time=\"400ms\" /> zwei, drei, null <break time=\"400ms\" /> eins, neun."
+- Read meter numbers in chunks, for example: "Die Zählernummer lautet: eins E B E <break time=\"400ms\" /> neun null null null <break time=\"400ms\" /> eins eins <break time=\"400ms\" /> null acht eins eins."
+- Use `<spell>...</spell>` for alphanumeric chunks only when character-by-character pronunciation matters, for example: "Die Zählernummer beginnt mit <spell>1 E B E</spell> <break time=\"400ms\" /> danach neun null null null."
+- Do not use full SSML tags such as `<speak>`, `<prosody>`, `<say-as>`, or `<emphasis>` unless the case context or Hermes explicitly says full SSML passthrough is configured.
+- After reading an important number, pause and ask for confirmation before continuing.
+- Ask the exact case-specific questions needed to resolve the case.
+- If a long identifier is provided, read it back digit-by-digit or in short chunks.
+- If a correction or answer is available, obtain confirmation and any Vorgangsnummer/reference.
+- If correction is not possible, obtain the exact reason, who must act next, expected timing, and any reference.
+- If the person cannot help, ask which department/contact should handle it.
+- Do not invent facts, IDs, expected answers, or outcomes.
+- End politely after obtaining the needed information.
+```
+
+Do not include hidden expected answers or invented outcomes in call instructions. For simulations/evals, expected answers belong in evaluator/oracle files, not the target assistant prompt.
+
+## Building a Vapi Assistant or Simulation Prompt
+
+For Vapi Simulations or assistant-prompt iteration, use the bundled base prompt:
 
 ```text
 templates/vapi-clearing-call-assistant-prompt.md
 ```
 
-Append a `# Case context for this call` section. Include only real facts from MCP/user/fixtures. Unknown fields should be omitted or explicitly marked `unknown`.
+Append a `# Case context for this call` section with only facts from MCP, user-provided synthetic context, or fixture docs. Unknown fields should be omitted or explicitly marked `unknown`.
 
-Recommended appended context shape:
+The base prompt is German-call focused: it requires German speech, AI disclosure to the first human, DTMF only for recorded menus, slow one-identifier-at-a-time pacing, inline identifier SSML, digit-by-digit readback, scenario-specific goals, and German back-office note intent.
 
-```markdown
-# Case context for this call
-Case key: CASE-B
-Scenario type: silent_registration
-Supplier: Nomos GmbH
-Call target: Rheinland Netz AG / market communication back office
-Safe test target: <provided challenge clerk/simulation target or phone number>
-Process step: Netzanmeldung
-Symptom/status: APERAK received but no confirmation; deadline passed.
-Known MaLo-ID: 48820037615
-Meter number: 1EMH9000020002
-Delivery address: Musterstraße 211, Köln-Ehrenfeld
-Registration sent: 02.06.2026
-Requested supply start: 01.08.2026
-Previous communication: Email follow-up sent, no reply.
+## After the Call or Simulation
 
-Information to obtain:
-- whether the registration was received and is valid
-- why processing stalled
-- whether Nomos must resubmit
-- Vorgangsnummer/reference number, if one exists
-- next action owner and expected timing
-
-Do not tell the clerk the expected answer. Ask naturally and verify.
-```
-
-For scenario/evaluation harnesses, keep expected answers/oracles out of the Vapi assistant prompt. The prompt may include case facts and goals, but not hidden expected outputs such as the corrected MaLo for CASE-C or the expected CASE-A diagnosis.
-
-### 4. Choose call/simulation path
-
-Use the Vapi integration available in the current environment. In Bruno's Vapi/Hermes setup, useful entrypoints may include:
-
-- `hermes-vapi-iterate` for Vapi Simulations prompt iteration.
-  - `hermes-vapi-iterate run-all --dry-run` previews scenarios without calling Vapi.
-  - `hermes-vapi-iterate run-all --limit 1` smoke-tests the suite runner.
-  - `hermes-vapi-iterate run-all` runs all scenario JSON files through Vapi simulation and does **not** place PSTN calls.
-- `hermes-vapi-smoke` for no-call auth/chat/phone-number checks.
-- `hermes-vapi-phone` for profile-scoped telephony/real-call workflows.
-- `~/.local/bin/vapi` or the Vapi REST API for direct assistant updates if needed.
-
-For a real external phone call, ensure the user has explicitly asked for that call and that the target is safe/authorized. Challenge rules say to use synthetic fixture data and provided clerk-agent/test targets only; never dial real customer/grid-operator numbers unless Bruno explicitly confirms a non-hackathon real-call context and compliance constraints.
-
-### 5. Place or run the call, then retrieve real output
-
-#### Single-call discipline for real outbound phone calls
-
-A single explicit user authorization covers **exactly one** outbound phone-call attempt to **one** target number for **one** case. Treat the returned call ID as the active attempt and keep working with that same ID until it reaches a terminal state.
-
-- After starting a real call, write down the Vapi/Twilio/Bland call ID before doing anything else.
-- Poll or fetch status for that same call ID until the provider reports a terminal state such as `ended`, `completed`, `failed`, `busy`, `no-answer`, `voicemail`, `silence-timed-out`, or an explicit provider error.
-- Do **not** place a second call just because the status is `queued`, `ringing`, `in-progress`, missing a transcript, missing a summary, or because the provider UI/API lags.
-- If the user answers the call but the transcript/summary is not ready yet, wait and re-poll the same call ID. If it still yields no useful result, report the call as inconclusive.
-- If cleanup is needed, use provider-specific end/cancel/delete controls for the existing call only; never start a new call as a cleanup or diagnostic step.
-- If the first call fails, is missed, is silent, is ended by the customer, hits voicemail, or produces no usable transcript, stop and ask Bruno for fresh explicit authorization before retrying.
-- Before any retry, state the previous call ID and final status so the duplicate-call risk is visible.
-
-Workflow:
-
-1. Update/create the Vapi assistant with the base prompt plus appended case context.
-2. Ensure Vapi has the required tools (at minimum DTMF/keypad and end-call behavior when supported).
-3. Start the simulation or the **one authorized call**.
-4. Record the returned call/run ID immediately.
-5. Retrieve the real transcript, structured report, call ID, run ID, status, and any tool-call logs by polling that same ID.
-6. If the call failed, timed out, reached voicemail, got stuck in an IVR, was ended by the customer, or did not produce an answer, report that honestly and do not update the case as if it succeeded.
-7. Do not retry or place another real call unless Bruno explicitly authorizes a new attempt after seeing the prior attempt's status.
-
-### 6. Interpret the call result by scenario
-
-Extract only facts supported by the call transcript/report.
-
-Always extract:
+Inspect the real call output/transcript/structured summary before extracting facts. Extract only facts supported by the transcript/report:
 
 - call/simulation status and ID
 - scenario type
@@ -197,106 +259,128 @@ Always extract:
 - next action verb
 - confidence and supporting quote/summary
 - reference/Vorgangsnummer if provided
-- whether a follow-up date/window was promised
-- whether a resubmission/retry is needed
+- follow-up date/window if promised
+- whether resubmission/retry is needed
+- corrected MaLo-ID or other corrected identifier if confirmed
 
-Extract scenario-specific fields:
+If a long identifier was obtained, verify that the transcript shows readback/confirmation. If not, mark confidence lower and avoid irreversible updates without confirmation.
 
-- MaLo-Ident: corrected MaLo-ID if provided; whether read back/confirmed digit-by-digit.
-- Bounced registration: rejection reason, whether old MaLo is dead/valid, whether new Anlage/customer action is required.
-- Silent registration: whether registration was received/valid/in processing, whether no resubmission is needed, reference number.
-- Kündigung: old supplier status, whether customer must cancel, cancellation reference, retry/reminder owner.
-- Inconclusive escalation: escalated department, unresolved question, promised callback/update timing, reference.
+## Updating Nomos
 
-If a long identifier is obtained, verify that the transcript shows the agent read it back or confirmed it in chunks/digit-by-digit. If not, mark confidence lower and avoid irreversible updates without confirmation.
+Use MCP update tools only for facts actually known from the case record, the user, or a completed call/result.
 
-### 7. Update Nomos through MCP
+Preferred tools:
 
-When MCP update tools are available:
+1. `mcp_nomos_save_call_result` — record the call outcome/summary/confidence.
+2. `mcp_nomos_update_case_details` — update audited case fields such as `malo_id`, `grid_operator`, `address`, `meter_number`, `registration_date`, `supply_start`, `status_text`, `symptom`, or `goal` when a confirmed detail changes. Dates must be `YYYY-MM-DD`; MaLo IDs must contain exactly 11 digits.
+3. `mcp_nomos_update_case_status` — update `case_status` and `next_action` after the outcome supports it.
+4. `mcp_nomos_get_case_summary` — read back the final visible state.
 
-1. Write a short back-office note in plain language.
-2. Store structured fields supported by the tool/schema.
-3. Trigger the scenario-specific next action only if the tool exists and the call result supports it.
-4. Read the case back through MCP after updating if possible.
-5. Report the update result and any verification readback.
+Rules:
 
-Suggested next-action mapping:
+- If a corrected MaLo is confirmed, use `mcp_nomos_update_case_details` with `malo_id=<confirmed 11-digit ID>` and then set a resubmission/registration next action if appropriate.
+- If no corrected MaLo was obtained, do **not** overwrite the MaLo field.
+- If a call was inconclusive, save the call result as inconclusive and keep the case open with a clear next action.
+- If a reference number or promised follow-up was provided, include it in the call result summary and/or next-action text if the MCP schema supports it.
+- If the current MaLo is dead due to removed/construction meter, update status/next action toward customer follow-up/new Anlage; do not store a fake replacement MaLo.
+- If only generic status/next-action update is appropriate, avoid changing case-detail fields.
+- Read the case summary back after updates when possible.
+
+### Suggested next-action mapping
 
 | Scenario result | Update/action |
 | --- | --- |
 | Corrected MaLo confirmed | Store corrected MaLo; trigger/resubmit registration. |
-| Current MaLo dead due to removed/construction meter | Mark case as customer follow-up/new Anlage needed; trigger email agent/customer contact. |
+| Current MaLo dead due to removed/construction meter | Mark customer follow-up/new Anlage needed; no resubmission on old MaLo. |
 | Registration received and pending | Store reference; mark waiting/in processing; schedule follow-up if promised. |
 | No resubmission required | Do not resend; note operator confirmation. |
 | Resubmission required | Mark for Nomos resubmission with reason. |
-| Old supplier cancellation blocker | Assign action to previous supplier/customer/Nomos as stated; trigger customer email if needed. |
+| Old supplier cancellation blocker | Assign action to previous supplier/customer/Nomos; trigger customer email if needed. |
 | Escalated/inconclusive | Store reference and promised update window; mark waiting for operator; schedule follow-up. |
 
-If update tools are not available, provide a structured pending update payload. Do not claim Nomos was updated.
+## Reverting Dev/Test Case Changes
 
-### 8. Final response format
+If the user asks to reset a Nomos fake-system case for another test run, use MCP first and last for readback. Direct database edits may be appropriate only when the user explicitly asks to revert local/dev database state or says the dev services are running and wants a DB-level reset.
 
-Use this structure for user-facing completion:
+Safe revert pattern:
+
+1. Read the case through `mcp_nomos_get_case_summary`.
+2. Inspect only rows for the specific `case_id` in `cases`, `call_logs`, and `audit_logs`.
+3. Revert only the rows/fields created by the unwanted action, using exact IDs/predicates.
+4. Preserve original case fields unless the user explicitly requests a full reset.
+5. Read back through MCP again.
+
+## Final Answer Pattern
+
+When reporting a Nomos case action, keep it short and factual:
 
 ```markdown
-## Nomos clearing-call result: <CASE-ID>
+## Nomos case result: <CASE-ID>
 
+- Status: <resolved/open/inconclusive>
 - Scenario: <malo_ident | bounced_registration | silent_registration | kuendigung | competing_registration | escalation | unknown>
 - Call/simulation status: <completed/failed/etc.>
 - Vapi call/run ID: <id if available>
-- Diagnosis: <short factual summary>
-- Corrected MaLo-ID: <value or not applicable/unknown>
+- MaLo: <confirmed/corrected/unchanged/unknown/not applicable>
+- Corrected MaLo: <value or none>
+- Diagnosis: <what is known>
 - Reference/Vorgangsnummer: <value or none provided>
 - Resubmission needed: <yes/no/unknown/not applicable>
-- Next action owner: <Nomos/customer/grid operator/previous supplier/email agent/unknown>
-- Next action: <specific action>
+- Next action: <who should do what>
 - Nomos update: <succeeded/failed/not available>
+- Evidence: <brief source: MCP, call transcript, or user-provided context>
 
 Back-office note:
-<plain-language note suitable for the Nomos case record>
-
-Evidence:
-<brief transcript-supported quote/summary>
+<short German note suitable for the Nomos case record>
 ```
 
 ## Guardrails
 
-- Do not reduce every task to "correct MaLo". Identify the scenario first.
-- Do not invent case data, call targets, call outcomes, reference numbers, corrected IDs, dates, or next steps.
-- Do not claim a backend/Nomos update unless a real MCP tool reports success.
+- Do not assume every case is a MaLo correction case.
+- Do not overwrite a MaLo unless the corrected ID is confirmed.
+- Do not invent case data, phone numbers, reference numbers, corrected IDs, diagnoses, dates, or call outcomes.
+- Do not claim Nomos was updated unless an MCP update tool succeeded.
 - Do not place a call if the case lookup failed and the user has not provided enough synthetic case context manually.
 - Do not place a real external call if the target phone number is absent, ambiguous, unauthorized, or outside the challenge/test constraints.
-- Do not place more than one outbound real phone call per explicit authorization. Provider lag, `ringing`, `in-progress`, missing transcript/summary, silence, voicemail, or customer-ended status is not permission to retry.
-- Do not start a second call as a way to test, recover, cancel, or debug the first call. Work from the original call ID and ask Bruno before any retry.
-- Do not use real customer data for challenge runs. The public fixtures are synthetic.
-- Do not ask the clerk for passwords or security credentials; clearing calls do not require them.
+- Do not place more than one outbound real phone call per explicit authorization.
+- Do not start a second call as a way to test, recover, cancel, or debug the first call. Work from the original call ID and ask before any retry.
 - Do not use DTMF/keypad in response to a human saying a department name. DTMF is only for recorded automated menus that explicitly ask for keypad input.
+- Do not ask the clerk for passwords or security credentials; clearing calls do not require them.
 - The Vapi agent must disclose AI status as its first words to a human, not to an IVR.
 - A reference number is useful but not always the win. The real reason and next step matter most.
-- Do not turn the workflow into Hermes-as-Vapi-Custom-LLM unless Bruno explicitly asks; default to Vapi handling real-time voice and Hermes orchestrating workflow/post-call actions.
+- Do not turn the workflow into Hermes-as-Vapi-Custom-LLM unless the user explicitly asks; default to Vapi handling real-time voice and Hermes orchestrating workflow/post-call actions.
+- Keep the skill generic: do not include a specific user's personal name in reusable Nomos instructions; say "the user" or write in neutral terms.
+- Do not add full SSML tags to live-call prompts unless Vapi formatting is configured to pass them through. If unsure, use only `<break>`/`<spell>` and German digit words.
 
-## Common Pitfalls
+## Pitfalls
 
 1. **MaLo tunnel vision.** CASE-A is not solved by merely asking for a corrected MaLo; it may be solved by discovering the old meter/MaLo is dead and the customer/new Anlage path is required.
 2. **Treating a ticket number as success.** A Vorgangsnummer without diagnosis/next step is incomplete.
-3. **Leaking expected answers into prompts.** In simulations, expected values belong in evaluator/oracle files, not the Vapi assistant prompt.
-4. **Skipping digit readback.** Long identifiers must be confirmed digit-by-digit or in chunks before storing.
+3. **Skipping digit readback.** Long identifiers must be confirmed digit-by-digit or in chunks before storing.
+4. **Leaking expected answers into prompts.** In simulations, expected values belong in evaluator/oracle files, not the Vapi assistant prompt.
 5. **Ignoring inconclusive outcomes.** Real calls may end with an internal escalation and promised callback. Log and follow up; do not fabricate resolution.
-6. **Updating unsupported fields.** If the MCP tool only supports generic `notes`/`status`, write a note/status only; do not pretend case-specific fields were stored.
-7. **Dialing real parties during challenge work.** Use provided synthetic/test targets unless Bruno explicitly moves to real-call testing.
-8. **Retrying while the provider status lags.** `ringing`, `in-progress`, a missing transcript, or a customer-ended/silence status without a summary means poll the same call ID and report inconclusive if needed; it is not permission to place another call.
+6. **Updating unsupported fields.** Use `update_case_details` only for fields it actually supports; otherwise record the fact in call result/status/next action.
+7. **Dialing real parties during challenge work.** Use provided synthetic/test targets unless the user explicitly moves to real-call testing.
+8. **Retrying while provider status lags.** `ringing`, `in-progress`, missing transcript/summary, or customer-ended/silence status means poll the same call ID and report inconclusive if needed; it is not permission to place another call.
+9. **Losing German call focus.** The live phone agent should speak German, use German market vocabulary, disclose AI status to the first human, and produce a German back-office note.
+10. **Unsupported SSML.** Generic SSML tags may be stripped by Vapi formatting or ignored by a voice model. Test the exact provider/model/settings and fall back to `<break>`/`<spell>` plus words if tags leak into speech or disappear.
 
 ## Verification Checklist
 
-- [ ] Case context came from MCP, explicit user input, or challenge fixture docs.
+- [ ] Case data came from MCP, explicit user input, or challenge fixture docs.
 - [ ] Scenario was classified before calling.
-- [ ] Vapi prompt used `templates/vapi-clearing-call-assistant-prompt.md` plus appended case context.
-- [ ] Expected answers/oracles were not included in the Vapi assistant prompt.
+- [ ] German call behavior was preserved: first-human AI disclosure, German language, German market terms, DTMF only for IVR, digit readback.
+- [ ] Vapi voice settings were checked; ElevenLabs calls use SSML parsing and a slower voice speed when available.
+- [ ] Identifier output used inline `<break>`/`<spell>` or a verified full-SSML passthrough configuration.
+- [ ] Vapi prompt used `templates/vapi-clearing-call-assistant-prompt.md` or the documented `telephony.py ai-call --provider vapi` helper prompt shape.
+- [ ] Expected answers/oracles were not included in the Vapi assistant/call prompt.
 - [ ] Call/simulation was actually run, or the blocker was reported honestly.
 - [ ] For real calls, exactly one outbound call ID was created per explicit authorization.
-- [ ] Non-terminal provider statuses (`queued`, `ringing`, `in-progress`, missing transcript/summary) were handled by polling the same call ID, not by placing another call.
-- [ ] Any retry after a failed, missed, silent, customer-ended, or inconclusive call was separately authorized by Bruno.
+- [ ] Non-terminal provider statuses were handled by polling the same call ID, not by placing another call.
+- [ ] Any retry after a failed, missed, silent, customer-ended, or inconclusive call was separately authorized.
 - [ ] Transcript/structured output was inspected before extracting facts.
 - [ ] Long identifiers were read back/confirmed before being treated as high-confidence.
-- [ ] Nomos update was performed through MCP, or the lack of MCP update capability was reported with a pending payload.
+- [ ] Corrected case details were written through `mcp_nomos_update_case_details` only when confirmed and schema-supported.
+- [ ] Status/next action was written through `mcp_nomos_update_case_status` only when the outcome supports it.
+- [ ] Final case summary was read back when possible.
 - [ ] Final response includes call/run ID, diagnosis, next action, update status, and evidence.
