@@ -1,0 +1,64 @@
+name: nomos
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-nomos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nomos}
+      POSTGRES_DB: ${POSTGRES_DB:-fake_system}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nomos} -d ${POSTGRES_DB:-fake_system}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: run migrations then seed, then exit. Web/MCP wait for this to finish.
+  fake-system-migrate:
+    build:
+      context: ./packages/fake-system
+    command: ["sh", "-c", "alembic upgrade head && fake-system-seed"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-nomos}:${POSTGRES_PASSWORD:-nomos}@postgres:5432/${POSTGRES_DB:-fake_system}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  fake-system-web:
+    build:
+      context: ./packages/fake-system
+    command: ["fake-system-web"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-nomos}:${POSTGRES_PASSWORD:-nomos}@postgres:5432/${POSTGRES_DB:-fake_system}
+      WEB_HOST: 0.0.0.0
+      WEB_PORT: "8000"
+    ports:
+      - "${WEB_PORT:-8000}:8000"
+    depends_on:
+      fake-system-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  fake-system-mcp:
+    build:
+      context: ./packages/fake-system
+    command: ["fake-system-mcp"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-nomos}:${POSTGRES_PASSWORD:-nomos}@postgres:5432/${POSTGRES_DB:-fake_system}
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "8765"
+    ports:
+      - "${MCP_PORT:-8765}:8765"
+    depends_on:
+      fake-system-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+volumes:
+  pgdata:

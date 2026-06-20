@@ -1,0 +1,18 @@
+{
+  "name": "nomos-agent",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Nomos agent monorepo.",
+  "scripts": {
+    "fake-system": "pnpm --filter @nomos/fake-system",
+    "db:up": "docker compose up -d postgres",
+    "db:down": "docker compose down",
+    "up": "docker compose up -d",
+    "down": "docker compose down",
+    "logs": "docker compose logs -f"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  }
+}

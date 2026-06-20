@@ -1,0 +1,45 @@
+[project]
+name = "fake-system"
+version = "0.1.0"
+description = "Fake customer-data system for Nomos: a dashboard plus an MCP server."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "alembic>=1.13",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.34",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.5",
+    "mcp>=1.2",
+]
+
+[project.scripts]
+fake-system-web = "fake_system.web.app:serve"
+fake-system-mcp = "fake_system.mcp_server:main"
+fake-system-seed = "fake_system.seed:main"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fake_system"]
+
+[tool.ruff]
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI uses callables (Depends/Form/Query) as argument defaults by design.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Form", "fastapi.Query"]

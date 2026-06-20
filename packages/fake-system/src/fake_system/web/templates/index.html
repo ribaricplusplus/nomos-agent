@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Customers · Fake System{% endblock %}
+{% block content %}
+  <h2>Customers <span class="muted">({{ customers | length }})</span></h2>
+  {% if customers %}
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th><th>Email</th><th>Company</th><th>Plan</th><th>Status</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in customers %}
+          <tr>
+            <td>{{ c.name }}</td>
+            <td class="muted">{{ c.email }}</td>
+            <td>{{ c.company or "—" }}</td>
+            <td>{{ c.plan }}</td>
+            <td><span class="pill {{ c.status }}">{{ c.status }}</span></td>
+            <td><a class="btn" href="/customers/{{ c.id }}/edit">Edit</a></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p class="muted">No customers yet. Run <code>uv run fake-system-seed</code>.</p>
+  {% endif %}
+{% endblock %}

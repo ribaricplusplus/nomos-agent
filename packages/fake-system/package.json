@@ -1,0 +1,15 @@
+{
+  "name": "@nomos/fake-system",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fake customer-data system for Nomos: a dashboard plus an MCP server. Python project managed with uv.",
+  "scripts": {
+    "install:py": "uv sync",
+    "dev": "uv run fake-system-web",
+    "mcp": "uv run fake-system-mcp",
+    "seed": "uv run fake-system-seed",
+    "migrate": "uv run alembic upgrade head",
+    "makemigration": "uv run alembic revision --autogenerate -m",
+    "lint": "uv run ruff check ."
+  }
+}

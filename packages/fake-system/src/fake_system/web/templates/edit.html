@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}Edit {{ customer.name }} · Fake System{% endblock %}
+{% block content %}
+  <h2>Edit customer</h2>
+  <form class="edit" method="post" action="/customers/{{ customer.id }}">
+    <label>
+      Name
+      <input type="text" name="name" value="{{ customer.name }}" required />
+    </label>
+    <label>
+      Email
+      <input type="email" name="email" value="{{ customer.email }}" required />
+    </label>
+    <label>
+      Company
+      <input type="text" name="company" value="{{ customer.company or '' }}" />
+    </label>
+    <label>
+      Plan
+      <select name="plan">
+        {% for p in plans %}
+          <option value="{{ p }}" {% if p == customer.plan %}selected{% endif %}>{{ p }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Status
+      <select name="status">
+        {% for s in statuses %}
+          <option value="{{ s }}" {% if s == customer.status %}selected{% endif %}>{{ s }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>
+      Notes
+      <textarea name="notes" rows="4">{{ customer.notes or '' }}</textarea>
+    </label>
+    <div class="actions">
+      <button class="btn primary" type="submit">Save</button>
+      <a class="btn" href="/">Cancel</a>
+    </div>
+  </form>
+{% endblock %}
