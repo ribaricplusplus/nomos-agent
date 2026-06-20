@@ -1,4 +1,4 @@
-"""Fake customer-data system for Nomos."""
+"""PostgreSQL-backed fake case system for Nomos."""
 
 __all__ = ["__version__"]
 

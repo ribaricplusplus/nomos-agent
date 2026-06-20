@@ -1,22 +1,22 @@
 {
-  "_note": "All names, IDs, addresses, dates and data in this file are synthetic and fictional. Street names use the placeholder 'Muster...' on purpose, and meter serials are clearly non-real. Use these to drive your agent via per-call dynamic variables. Never use real customer data.",
+  "_note": "All names, IDs, addresses, dates and data in this file are synthetic and fictional. Never use real customer data.",
   "cases": [
     {
-      "id": "CASE-A",
+      "id": "NM26-A001",
       "case_title": "Marktlokation nimmt nicht teil",
       "lieferant": "Nomos GmbH",
       "vnb_name": "Bayern Werknetz GmbH",
       "malo_id": "50312478901",
-      "lieferstelle": "Mustepython database.pyrstraße 4, Mainz-Kastel",
+      "lieferstelle": "Musterstraße 4, Mainz-Kastel",
       "zaehlernummer": "1ESY9000010001",
       "anmeldung_datum": "12.06.2026",
       "lieferbeginn": "14.07.2027",
       "statustext": "Netzanmeldung abgelehnt: 'Marktlokation nimmt nicht teil'.",
-      "symptom": "We sent a registration and were given this MaLo, but it bounces with 'Marktlokation nimmt nicht teil'. The automation cannot tell us why.",
-      "goal": "Find out the real reason and the next step. (Expected: the meter was a Baustromzähler, removed on 18.05, so a new Anlage is needed and we go back to the customer. No ticket number required.)"
+      "symptom": "The registration was rejected because the market location is shown as not participating.",
+      "goal": "Find the rejection reason and determine whether a new installation must be created."
     },
     {
-      "id": "CASE-B",
+      "id": "NM26-B002",
       "case_title": "Reminder / Nachfassen",
       "lieferant": "Nomos GmbH",
       "vnb_name": "Rheinland Netz AG",
@@ -25,12 +25,12 @@
       "zaehlernummer": "1EMH9000020002",
       "anmeldung_datum": "02.06.2026",
       "lieferbeginn": "01.08.2026",
-      "statustext": "APERAK am 03.06.2026 erhalten, aber keine Anmeldebestätigung; Frist verstrichen.",
-      "symptom": "We sent a registration, got the automated receipt, but never the confirmation, and the deadline has passed. Is it lost? Is it stuck?",
-      "goal": "Confirm the registration was received and is in process, learn why it stalled, get a Vorgangsnummer, and confirm no resubmission is needed."
+      "statustext": "APERAK received, but the registration confirmation is overdue.",
+      "symptom": "The registration was acknowledged automatically but no final confirmation arrived.",
+      "goal": "Confirm processing status, obtain a reference number, and avoid an unnecessary resubmission."
     },
     {
-      "id": "CASE-C",
+      "id": "NM26-C003",
       "case_title": "MaLo-Ident",
       "lieferant": "Nomos GmbH",
       "vnb_name": "Elbe Energienetze GmbH",
@@ -39,9 +39,107 @@
       "zaehlernummer": "1ESY9000030003",
       "anmeldung_datum": "",
       "lieferbeginn": "15.07.2026",
-      "statustext": "Identifikation lieferte keine passende/eindeutige MaLo für die Adresse.",
-      "symptom": "The MaLo we hold doesn't match the address. The building has several delivery points, so the address alone is ambiguous.",
-      "goal": "Get the correct MaLo. (The customer's Zählernummer disambiguates it.) Read the corrected MaLo back digit by digit before closing."
+      "statustext": "Identification returned no unique market location for the address.",
+      "symptom": "The building contains several delivery points and the address alone is ambiguous.",
+      "goal": "Use the meter number to identify and confirm the correct market location."
+    },
+    {
+      "id": "NM26-D104",
+      "case_title": "Lieferbeginn verschoben",
+      "lieferant": "Nomos GmbH",
+      "vnb_name": "Nordlicht Netzservice AG",
+      "malo_id": "64019283746",
+      "lieferstelle": "Musterallee 17, Bremen",
+      "zaehlernummer": "1EBR9000040104",
+      "anmeldung_datum": "08.06.2026",
+      "lieferbeginn": "01.07.2026",
+      "statustext": "The confirmed supply start differs from the requested date.",
+      "symptom": "The grid operator confirmed supply two weeks later than requested.",
+      "goal": "Clarify the reason for the delay and request correction of the supply start."
+    },
+    {
+      "id": "NM26-E205",
+      "case_title": "Zählernummer unbekannt",
+      "lieferant": "Nomos GmbH",
+      "vnb_name": "Weststrom Verteilnetz GmbH",
+      "malo_id": "59200381745",
+      "lieferstelle": "Musterplatz 9, Dortmund",
+      "zaehlernummer": "1EDO9000050205",
+      "anmeldung_datum": "10.06.2026",
+      "lieferbeginn": "01.08.2026",
+      "statustext": "The submitted meter number could not be found.",
+      "symptom": "The customer supplied a meter number that is not known to the grid operator.",
+      "goal": "Validate the meter number and determine the correct identifier for registration."
+    },
+    {
+      "id": "NM26-F306",
+      "case_title": "Doppelte Anmeldung",
+      "lieferant": "Nomos GmbH",
+      "vnb_name": "Main Energie Netz GmbH",
+      "malo_id": "73198542016",
+      "lieferstelle": "Musterufer 33, Frankfurt am Main",
+      "zaehlernummer": "1EFF9000060306",
+      "anmeldung_datum": "11.06.2026",
+      "lieferbeginn": "15.07.2026",
+      "statustext": "Registration rejected because another registration is already active.",
+      "symptom": "A duplicate-registration response was returned although only one request is visible internally.",
+      "goal": "Identify the competing registration and confirm which request should remain active."
+    },
+    {
+      "id": "NM26-G407",
+      "case_title": "Stammdatenabweichung",
+      "lieferant": "Nomos GmbH",
+      "vnb_name": "Südnetz Betrieb AG",
+      "malo_id": "81640273951",
+      "lieferstelle": "Musterhöhe 6, Stuttgart",
+      "zaehlernummer": "1EST9000070407",
+      "anmeldung_datum": "13.06.2026",
+      "lieferbeginn": "01.09.2026",
+      "statustext": "Customer master data does not match the grid operator records.",
+      "symptom": "The customer name and address formatting differ from the grid operator master data.",
+      "goal": "Confirm the accepted master data and update the registration accordingly."
+    },
+    {
+      "id": "NM26-H508",
+      "case_title": "Einzug nicht bestätigt",
+      "lieferant": "Nomos GmbH",
+      "vnb_name": "Havel Netzpartner GmbH",
+      "malo_id": "92745018362",
+      "lieferstelle": "Musterbogen 42, Potsdam",
+      "zaehlernummer": "1EPO9000080508",
+      "anmeldung_datum": "15.06.2026",
+      "lieferbeginn": "01.07.2026",
+      "statustext": "Move-in registration remains unconfirmed.",
+      "symptom": "No confirmation or rejection was received within the expected processing period.",
+      "goal": "Locate the request, obtain its processing state, and confirm the next deadline."
+    },
+    {
+      "id": "NM26-J609",
+      "case_title": "Falscher Netzbetreiber",
+      "lieferant": "Nomos GmbH",
+      "vnb_name": "Küstenstrom Netz GmbH",
+      "malo_id": "37461092855",
+      "lieferstelle": "Musterdeich 81, Kiel",
+      "zaehlernummer": "1EKI9000090609",
+      "anmeldung_datum": "16.06.2026",
+      "lieferbeginn": "15.08.2026",
+      "statustext": "The contacted company is not responsible for this market location.",
+      "symptom": "The registration was routed to the wrong grid operator.",
+      "goal": "Identify the responsible grid operator and document the correct routing information."
+    },
+    {
+      "id": "NM26-K710",
+      "case_title": "Abmeldung fehlt",
+      "lieferant": "Nomos GmbH",
+      "vnb_name": "Isar Verteilnetz GmbH",
+      "malo_id": "20594817360",
+      "lieferstelle": "Musterfeld 120, München",
+      "zaehlernummer": "1EMU9000100710",
+      "anmeldung_datum": "18.06.2026",
+      "lieferbeginn": "01.08.2026",
+      "statustext": "The previous supplier has not completed deregistration.",
+      "symptom": "The new registration is blocked by an active previous-supplier assignment.",
+      "goal": "Confirm the pending deregistration and establish when the new registration can proceed."
     }
   ]
 }

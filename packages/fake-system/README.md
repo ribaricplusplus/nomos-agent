@@ -1,67 +1,91 @@
 # @nomos/fake-system
 
-A stand-in "external system" for Nomos that stores **customer data**. It has two faces over one database:
+A PostgreSQL-backed stand-in for the Nomos case system. The dashboard and MCP
+server share one SQLAlchemy data layer containing:
 
-- a small **dashboard** (FastAPI + Jinja2) to view and edit customers, and
-- an **MCP server** that **Hermes** connects to in order to read and update that same data.
+- cases imported from `data.json`;
+- call results recorded by the agent; and
+- an audit trail for case-status changes.
 
-Python project, managed with [uv](https://docs.astral.sh/uv/). ORM is **SQLAlchemy 2.0**; migrations are **Alembic**.
+The database schema is managed with Alembic. There is no SQLite runtime or
+local `.db` file.
 
-## Layout
+## Run locally
 
-```
-packages/fake-system/
-├── pyproject.toml            # deps + console scripts (managed by uv)
-├── alembic.ini
-├── migrations/               # Alembic (env.py + versions/)
-└── src/fake_system/
-    ├── config.py             # settings from env / .env
-    ├── db.py                 # engine + session scope
-    ├── models.py             # SQLAlchemy models (Customer)
-    ├── repository.py         # CRUD shared by web + MCP
-    ├── seed.py               # sample data
-    ├── web/app.py            # dashboard (FastAPI)
-    └── mcp_server.py         # MCP server (FastMCP, streamable HTTP)
-```
-
-## Develop
+From the `nomos-agent` directory:
 
 ```bash
-cp .env.example .env          # point DATABASE_URL at your Postgres
-uv sync                       # create the venv + install deps
-
-uv run alembic upgrade head   # apply migrations
-uv run fake-system-seed       # insert sample customers
-
-uv run fake-system-web        # dashboard  -> http://localhost:8000
-uv run fake-system-mcp        # MCP server -> http://localhost:8765/mcp
+docker compose up -d postgres
+cd packages/fake-system
+cp .env.example .env
+uv sync
+uv run alembic upgrade head
+uv run fake-system-seed
+uv run fake-system-web
 ```
 
-A local Postgres is easiest via the repo-root compose file: `docker compose up -d postgres`.
-
-## Migrations
+In another terminal:
 
 ```bash
-# after editing models.py
-uv run alembic revision --autogenerate -m "describe change"
+uv run fake-system-mcp
+```
+
+- Dashboard: `http://localhost:8000`
+- MCP endpoint: `http://localhost:8765/mcp`
+
+Running `docker compose up -d` from `nomos-agent` performs migration and seeding
+automatically before starting both services.
+
+## Configuration
+
+The application reads a SQLAlchemy URL from `DATABASE_URL`:
+
+```dotenv
+DATABASE_URL=postgresql+psycopg://nomos:nomos@localhost:5432/fake_system
+```
+
+Use a dedicated database role and secret manager outside local development.
+
+## Database changes
+
+After modifying `src/fake_system/models.py`:
+
+```bash
+uv run alembic revision --autogenerate -m "describe the change"
 uv run alembic upgrade head
 ```
 
-## MCP server
+Migration `0002` replaces the earlier placeholder `customers` table with the
+case workflow tables. Back up any data in that placeholder table before
+upgrading if it must be retained.
 
-`fake-system-mcp` serves over **streamable HTTP**. Point Hermes (or any MCP client) at:
+Migration `0003` removes the two temporary metadata columns so the `cases`
+table matches the original SQLite column contract exactly.
 
-```
-http://<host>:8765/mcp
-```
+Migration `0004` changes the original placeholder IDs to stable alphanumeric
+IDs and enables cascading ID updates so related call and audit logs are
+preserved.
 
-Exposed capabilities:
+## MCP capabilities
 
 | Kind | Name | Purpose |
 | --- | --- | --- |
-| tool | `list_customers` | List all customers |
-| tool | `get_customer(customer_id)` | Fetch one customer by UUID |
-| tool | `update_customer(customer_id, …)` | Update provided fields on a customer |
-| resource | `customers://all` | All customers as JSON |
+| tool | `list_cases` | List all cases |
+| tool | `get_case(case_id)` | Fetch one case |
+| tool | `save_call_result(...)` | Store an agent call result |
+| tool | `update_case_status(...)` | Update status and write an audit event |
+| tool | `get_case_summary(case_id)` | Fetch a case and its latest call |
+| resource | `cases://all` | Return all cases as JSON |
 
-Host/port come from `MCP_HOST` / `MCP_PORT` (see `.env.example`).
+## Quality checks
+
+```bash
+uv run ruff check .
+uv run pytest
+uv run alembic check
+uv run fake-system-smoke
+```
+
+The smoke test creates a uniquely named temporary case, verifies PostgreSQL,
+dashboard status updates, dashboard call logging, all MCP tools, and audit
+logging, then deletes the temporary case and its related records.

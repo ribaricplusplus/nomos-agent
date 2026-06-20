@@ -1,43 +1,74 @@
 {% extends "base.html" %}
-{% block title %}Edit {{ customer.name }} · Fake System{% endblock %}
+{% block title %}{{ case.case_id }} · Fake Nomos{% endblock %}
 {% block content %}
-  <h2>Edit customer</h2>
-  <form class="edit" method="post" action="/customers/{{ customer.id }}">
-    <label>
-      Name
-      <input type="text" name="name" value="{{ customer.name }}" required />
-    </label>
-    <label>
-      Email
-      <input type="email" name="email" value="{{ customer.email }}" required />
-    </label>
-    <label>
-      Company
-      <input type="text" name="company" value="{{ customer.company or '' }}" />
-    </label>
-    <label>
-      Plan
-      <select name="plan">
-        {% for p in plans %}
-          <option value="{{ p }}" {% if p == customer.plan %}selected{% endif %}>{{ p }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>
-      Status
-      <select name="status">
-        {% for s in statuses %}
-          <option value="{{ s }}" {% if s == customer.status %}selected{% endif %}>{{ s }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>
-      Notes
-      <textarea name="notes" rows="4">{{ customer.notes or '' }}</textarea>
-    </label>
-    <div class="actions">
-      <button class="btn primary" type="submit">Save</button>
-      <a class="btn" href="/">Cancel</a>
+  <div class="actions">
+    <a class="btn" href="/">← All cases</a>
+    <span class="pill">{{ case.case_status }}</span>
+  </div>
+  <h2>{{ case.case_id }} · {{ case.case_title }}</h2>
+
+  <section class="grid">
+    <div class="card">
+      <h3>Complete case data</h3>
+      <dl>
+        <div class="field"><dt>Supplier</dt><dd>{{ case.supplier }}</dd></div>
+        <div class="field"><dt>Grid operator</dt><dd>{{ case.grid_operator }}</dd></div>
+        <div class="field"><dt>MaLo ID</dt><dd>{{ case.malo_id }}</dd></div>
+        <div class="field"><dt>Address</dt><dd>{{ case.address }}</dd></div>
+        <div class="field"><dt>Meter number</dt><dd>{{ case.meter_number }}</dd></div>
+        <div class="field"><dt>Registration date</dt><dd>{{ case.registration_date or "—" }}</dd></div>
+        <div class="field"><dt>Supply start</dt><dd>{{ case.supply_start or "—" }}</dd></div>
+        <div class="field"><dt>Status text</dt><dd>{{ case.status_text }}</dd></div>
+        <div class="field"><dt>Symptom</dt><dd>{{ case.symptom }}</dd></div>
+        <div class="field"><dt>Goal</dt><dd>{{ case.goal }}</dd></div>
+        <div class="field"><dt>Next action</dt><dd>{{ case.next_action or "—" }}</dd></div>
+      </dl>
     </div>
-  </form>
+
+    <div>
+      <div class="card">
+        <h3>Update case status</h3>
+        <form method="post" action="/cases/{{ case.case_id }}/status">
+          <label>Case status<input name="case_status" value="{{ case.case_status }}" maxlength="32" required /></label>
+          <label>Next action<textarea name="next_action" rows="4" maxlength="10000">{{ case.next_action }}</textarea></label>
+          <button class="btn primary" type="submit">Save and audit</button>
+        </form>
+      </div>
+
+      <div class="card" style="margin-top: 1rem">
+        <h3>Record call result</h3>
+        <form method="post" action="/cases/{{ case.case_id }}/calls">
+          <label>Duration in seconds<input type="number" name="duration_seconds" min="0" required /></label>
+          <label>Outcome<input name="outcome" maxlength="100" required /></label>
+          <label>Confidence (0 to 1)<input type="number" name="confidence" min="0" max="1" step="0.01" required /></label>
+          <label>Summary<textarea name="summary" rows="4" maxlength="10000" required></textarea></label>
+          <button class="btn primary" type="submit">Save call log</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <h2>Call logs</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Time</th><th>Duration</th><th>Outcome</th><th>Confidence</th><th>Summary</th></tr></thead>
+      <tbody>
+        {% for call in call_logs %}
+          <tr><td>{{ call.call_datetime }}</td><td>{{ call.duration_seconds }}s</td><td>{{ call.outcome }}</td><td>{{ "%.2f" | format(call.confidence) }}</td><td>{{ call.summary }}</td></tr>
+        {% else %}<tr><td colspan="5" class="muted">No calls recorded for this case.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Audit logs</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Time</th><th>Field</th><th>Old value</th><th>New value</th><th>Changed by</th></tr></thead>
+      <tbody>
+        {% for audit in audit_logs %}
+          <tr><td>{{ audit.changed_at }}</td><td>{{ audit.changed_field }}</td><td>{{ audit.old_value or "—" }}</td><td>{{ audit.new_value or "—" }}</td><td>{{ audit.changed_by }}</td></tr>
+        {% else %}<tr><td colspan="5" class="muted">No changes recorded for this case.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
 {% endblock %}

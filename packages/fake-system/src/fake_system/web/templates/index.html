@@ -1,28 +1,54 @@
 {% extends "base.html" %}
-{% block title %}Customers · Fake System{% endblock %}
+{% block title %}Cases · Fake Nomos{% endblock %}
 {% block content %}
-  <h2>Customers <span class="muted">({{ customers | length }})</span></h2>
-  {% if customers %}
+  <section class="metrics">
+    <div class="metric"><span class="muted">Total cases</span><strong>{{ cases | length }}</strong></div>
+    <div class="metric"><span class="muted">Open cases</span><strong>{{ open_cases }}</strong></div>
+    <div class="metric"><span class="muted">Calls made</span><strong>{{ call_logs | length }}</strong></div>
+    <div class="metric"><span class="muted">Audit updates</span><strong>{{ audit_logs | length }}</strong></div>
+  </section>
+
+  <h2>Cases / client records</h2>
+  <div class="table-wrap">
     <table>
-      <thead>
-        <tr>
-          <th>Name</th><th>Email</th><th>Company</th><th>Plan</th><th>Status</th><th></th>
-        </tr>
-      </thead>
+      <thead><tr><th>ID</th><th>Title</th><th>Supplier</th><th>Grid operator</th><th>MaLo</th><th>Meter</th><th>Address</th><th>Registration</th><th>Supply start</th><th>Status</th><th>Next action</th><th></th></tr></thead>
       <tbody>
-        {% for c in customers %}
+        {% for case in cases %}
           <tr>
-            <td>{{ c.name }}</td>
-            <td class="muted">{{ c.email }}</td>
-            <td>{{ c.company or "—" }}</td>
-            <td>{{ c.plan }}</td>
-            <td><span class="pill {{ c.status }}">{{ c.status }}</span></td>
-            <td><a class="btn" href="/customers/{{ c.id }}/edit">Edit</a></td>
+            <td>{{ case.case_id }}</td><td>{{ case.case_title }}</td><td>{{ case.supplier }}</td>
+            <td>{{ case.grid_operator }}</td><td>{{ case.malo_id }}</td><td>{{ case.meter_number }}</td>
+            <td>{{ case.address }}</td><td>{{ case.registration_date or "—" }}</td><td>{{ case.supply_start or "—" }}</td>
+            <td><span class="pill">{{ case.case_status }}</span></td><td>{{ case.next_action or "—" }}</td>
+            <td><a class="btn" href="/cases/{{ case.case_id }}">View</a></td>
           </tr>
+        {% else %}
+          <tr><td colspan="12" class="muted">No cases yet. Run <code>uv run fake-system-seed</code>.</td></tr>
         {% endfor %}
       </tbody>
     </table>
-  {% else %}
-    <p class="muted">No customers yet. Run <code>uv run fake-system-seed</code>.</p>
-  {% endif %}
+  </div>
+
+  <h2>All call logs</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Time</th><th>Case</th><th>Duration</th><th>Outcome</th><th>Confidence</th><th>Summary</th></tr></thead>
+      <tbody>
+        {% for call in call_logs %}
+          <tr><td>{{ call.call_datetime }}</td><td>{{ call.case_id }}</td><td>{{ call.duration_seconds }}s</td><td>{{ call.outcome }}</td><td>{{ "%.2f" | format(call.confidence) }}</td><td>{{ call.summary }}</td></tr>
+        {% else %}<tr><td colspan="6" class="muted">No calls recorded.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <h2>All audit logs</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Time</th><th>Case</th><th>Field</th><th>Old value</th><th>New value</th><th>Changed by</th></tr></thead>
+      <tbody>
+        {% for audit in audit_logs %}
+          <tr><td>{{ audit.changed_at }}</td><td>{{ audit.case_id }}</td><td>{{ audit.changed_field }}</td><td>{{ audit.old_value or "—" }}</td><td>{{ audit.new_value or "—" }}</td><td>{{ audit.changed_by }}</td></tr>
+        {% else %}<tr><td colspan="6" class="muted">No changes recorded.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+  </div>
 {% endblock %}

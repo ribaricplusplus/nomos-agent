@@ -1,7 +1,4 @@
-"""MCP server exposing the fake system's customer data.
-
-Hermes connects to this over streamable HTTP at:  http://<MCP_HOST>:<MCP_PORT>/mcp
-"""
+"""MCP server exposing the PostgreSQL-backed Nomos case workflow."""
 
 from __future__ import annotations
 
@@ -16,70 +13,97 @@ from fake_system.db import session_scope
 settings = get_settings()
 
 mcp = FastMCP(
-    "fake-system",
-    instructions=(
-        "Customer records for the Nomos fake system. "
-        "Use these tools to read and update customer data."
-    ),
+    "fake-nomos-mcp",
+    instructions="Read Nomos cases, record calls, and update case status.",
     host=settings.mcp_host,
     port=settings.mcp_port,
 )
 
 
 @mcp.tool()
-def list_customers() -> list[dict]:
-    """List every customer in the fake system."""
+def list_cases() -> list[dict]:
+    """List every case."""
     with session_scope() as session:
-        return [c.as_dict() for c in repository.list_customers(session)]
+        return [case.as_dict() for case in repository.list_cases(session)]
 
 
 @mcp.tool()
-def get_customer(customer_id: str) -> dict | None:
-    """Get a single customer by id (UUID). Returns null if not found."""
+def get_case(case_id: str) -> dict | None:
+    """Get one case by its case ID."""
     with session_scope() as session:
-        customer = repository.get_customer(session, customer_id)
-        return customer.as_dict() if customer else None
+        case = repository.get_case(session, case_id)
+        return case.as_dict() if case else None
 
 
 @mcp.tool()
-def update_customer(
-    customer_id: str,
-    name: str | None = None,
-    email: str | None = None,
-    company: str | None = None,
-    plan: str | None = None,
-    status: str | None = None,
-    notes: str | None = None,
-) -> dict | None:
-    """Update a customer. Only the fields you pass (non-null) are changed.
-
-    Returns the updated customer, or null if no customer has that id.
-    """
+def save_call_result(
+    case_id: str,
+    duration_seconds: int,
+    outcome: str,
+    summary: str,
+    confidence: float,
+) -> dict:
+    """Record the result of an agent call. Confidence must be from 0 to 1."""
     with session_scope() as session:
-        customer = repository.update_customer(
+        call_log = repository.save_call_result(
             session,
-            customer_id,
-            name=name,
-            email=email,
-            company=company,
-            plan=plan,
-            status=status,
-            notes=notes,
+            case_id=case_id,
+            duration_seconds=duration_seconds,
+            outcome=outcome,
+            summary=summary,
+            confidence=confidence,
         )
-        return customer.as_dict() if customer else None
+        if call_log is None:
+            return {"success": False, "error": "Case not found"}
+        return {"success": True, "call_log": call_log.as_dict()}
 
 
-@mcp.resource("customers://all")
-def customers_resource() -> str:
-    """All customers as a JSON document."""
+@mcp.tool()
+def update_case_status(case_id: str, new_status: str, next_action: str) -> dict:
+    """Update a case's status and next action, recording an audit entry."""
+    with session_scope() as session:
+        case = repository.get_case(session, case_id)
+        if case is None:
+            return {"success": False, "error": "Case not found"}
+        old_status = case.case_status
+        updated = repository.update_case_status(
+            session,
+            case_id=case_id,
+            new_status=new_status,
+            next_action=next_action,
+        )
+        return {
+            "success": True,
+            "case_id": case_id,
+            "old_status": old_status,
+            "new_status": updated.case_status,
+            "next_action": updated.next_action,
+        }
+
+
+@mcp.tool()
+def get_case_summary(case_id: str) -> dict:
+    """Get case details together with its latest call log."""
+    with session_scope() as session:
+        case = repository.get_case(session, case_id)
+        latest_call = repository.get_latest_call(session, case_id) if case else None
+        return {
+            "case": case.as_dict() if case else None,
+            "latest_call": latest_call.as_dict() if latest_call else None,
+        }
+
+
+@mcp.resource("cases://all")
+def cases_resource() -> str:
+    """All cases as a JSON document."""
     with session_scope() as session:
         return json.dumps(
-            [c.as_dict() for c in repository.list_customers(session)], indent=2
+            [case.as_dict() for case in repository.list_cases(session)], indent=2
         )
 
 
 def main() -> None:
-    """Console-script entrypoint: serve over streamable HTTP."""
+    """Serve MCP over streamable HTTP."""
     mcp.run(transport="streamable-http")
 
 

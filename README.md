@@ -6,7 +6,7 @@ A pnpm monorepo for Nomos. Packages live under [`packages/`](./packages).
 
 | Package | Stack | What it is |
 | --- | --- | --- |
-| [`packages/fake-system`](./packages/fake-system) | Python (uv) · FastAPI · SQLAlchemy · Alembic · MCP | A stand-in "external system" that stores customer data. Ships a small dashboard to view/edit the data and an MCP server that **Hermes** connects to. |
+| [`packages/fake-system`](./packages/fake-system) | Python (uv) · FastAPI · SQLAlchemy · Alembic · MCP | A PostgreSQL-backed case system with a dashboard, call/audit logs, and an MCP server that **Hermes** connects to. |
 
 ## Prerequisites
 
@@ -46,5 +46,5 @@ uv run fake-system-mcp             # MCP server on :8765 (separate terminal)
 
 - `postgres` — Postgres 17.
 - `fake-system-migrate` — one-shot: runs Alembic migrations then seeds, then exits.
-- `fake-system-web` — the customer dashboard (port 8000).
+- `fake-system-web` — the case dashboard (port 8000).
 - `fake-system-mcp` — the MCP server Hermes connects to (port 8765).

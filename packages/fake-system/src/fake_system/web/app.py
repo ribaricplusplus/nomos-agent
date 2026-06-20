@@ -1,4 +1,4 @@
-"""FastAPI dashboard: render customers and update them."""
+"""FastAPI dashboard for PostgreSQL-backed cases, calls, and audit events."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ import uvicorn
 from fastapi import Depends, FastAPI, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from fake_system import repository
@@ -17,64 +18,89 @@ from fake_system.db import get_db
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
-app = FastAPI(title="Fake System — Customer Dashboard")
-
-PLANS = ["free", "pro", "enterprise"]
-STATUSES = ["active", "suspended", "churned"]
+app = FastAPI(title="Fake Nomos Case Dashboard")
 
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request, db: Session = Depends(get_db)) -> HTMLResponse:
-    customers = repository.list_customers(db)
+    cases = repository.list_cases(db)
+    call_logs = repository.list_call_logs(db)
+    audit_logs = repository.list_audit_logs(db)
     return templates.TemplateResponse(
-        "index.html", {"request": request, "customers": customers}
+        request,
+        "index.html",
+        {
+            "cases": cases,
+            "call_logs": call_logs,
+            "audit_logs": audit_logs,
+            "open_cases": sum(case.case_status == "OPEN" for case in cases),
+        },
     )
 
 
-@app.get("/customers/{customer_id}/edit", response_class=HTMLResponse, response_model=None)
-def edit_customer(
-    customer_id: str, request: Request, db: Session = Depends(get_db)
+@app.get("/cases/{case_id}", response_class=HTMLResponse, response_model=None)
+def case_detail(
+    case_id: str, request: Request, db: Session = Depends(get_db)
 ) -> HTMLResponse | RedirectResponse:
-    customer = repository.get_customer(db, customer_id)
-    if customer is None:
+    case = repository.get_case(db, case_id)
+    if case is None:
         return RedirectResponse("/", status_code=303)
     return templates.TemplateResponse(
+        request,
         "edit.html",
-        {"request": request, "customer": customer, "plans": PLANS, "statuses": STATUSES},
+        {
+            "case": case,
+            "call_logs": repository.list_call_logs(db, case_id),
+            "audit_logs": repository.list_audit_logs(db, case_id),
+        },
     )
 
 
-@app.post("/customers/{customer_id}")
-def save_customer(
-    customer_id: str,
-    name: str = Form(...),
-    email: str = Form(...),
-    company: str = Form(""),
-    plan: str = Form("free"),
-    status: str = Form("active"),
-    notes: str = Form(""),
+@app.post("/cases/{case_id}/status")
+def save_case_status(
+    case_id: str,
+    case_status: str = Form(..., min_length=1, max_length=32),
+    next_action: str = Form("", max_length=10_000),
     db: Session = Depends(get_db),
 ) -> RedirectResponse:
-    repository.update_customer(
+    repository.update_case_status(
         db,
-        customer_id,
-        name=name,
-        email=email,
-        company=company or None,
-        plan=plan,
-        status=status,
-        notes=notes or None,
+        case_id=case_id,
+        new_status=case_status,
+        next_action=next_action,
+        changed_by="DASHBOARD",
     )
-    return RedirectResponse("/", status_code=303)
+    return RedirectResponse(f"/cases/{case_id}", status_code=303)
+
+
+@app.post("/cases/{case_id}/calls")
+def save_case_call(
+    case_id: str,
+    duration_seconds: int = Form(..., ge=0),
+    outcome: str = Form(..., min_length=1, max_length=100),
+    summary: str = Form(..., min_length=1, max_length=10_000),
+    confidence: float = Form(..., ge=0, le=1),
+    db: Session = Depends(get_db),
+) -> RedirectResponse:
+    repository.save_call_result(
+        db,
+        case_id=case_id,
+        duration_seconds=duration_seconds,
+        outcome=outcome,
+        summary=summary,
+        confidence=confidence,
+    )
+    return RedirectResponse(f"/cases/{case_id}", status_code=303)
 
 
 @app.get("/healthz")
-def healthz() -> dict:
-    return {"status": "ok"}
+def healthz(db: Session = Depends(get_db)) -> dict:
+    db.execute(text("SELECT 1"))
+    return {"status": "ok", "database": "reachable"}
 
 
 def serve() -> None:
-    """Console-script entrypoint: run the dashboard with uvicorn."""
+    """Run the dashboard with uvicorn."""
     settings = get_settings()
     uvicorn.run(
         "fake_system.web.app:app",

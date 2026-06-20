@@ -1,1 +1,1 @@
-"""Customer dashboard (FastAPI)."""
+"""Case dashboard (FastAPI)."""

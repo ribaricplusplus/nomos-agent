@@ -1,47 +1,112 @@
-"""Data-access functions shared by the dashboard and the MCP server."""
+"""Transactional data access shared by the dashboard and MCP server."""
 
 from __future__ import annotations
 
-import uuid
 from collections.abc import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from fake_system.models import Customer
-
-# Fields a caller is allowed to set/update on a customer.
-EDITABLE_FIELDS = ("name", "email", "company", "plan", "status", "notes")
+from fake_system.models import AuditLog, CallLog, Case
 
 
-def _as_uuid(customer_id: uuid.UUID | str) -> uuid.UUID:
-    return customer_id if isinstance(customer_id, uuid.UUID) else uuid.UUID(str(customer_id))
+def list_cases(session: Session) -> Sequence[Case]:
+    return session.scalars(select(Case).order_by(Case.case_id)).all()
 
 
-def list_customers(session: Session) -> Sequence[Customer]:
-    return session.scalars(select(Customer).order_by(Customer.created_at)).all()
+def get_case(session: Session, case_id: str) -> Case | None:
+    return session.get(Case, case_id)
 
 
-def get_customer(session: Session, customer_id: uuid.UUID | str) -> Customer | None:
-    return session.get(Customer, _as_uuid(customer_id))
-
-
-def create_customer(session: Session, **fields) -> Customer:
-    customer = Customer(**{k: v for k, v in fields.items() if k in EDITABLE_FIELDS})
-    session.add(customer)
-    session.flush()
-    return customer
-
-
-def update_customer(
-    session: Session, customer_id: uuid.UUID | str, **fields
-) -> Customer | None:
-    """Update the given fields. Only keys in EDITABLE_FIELDS with non-None values apply."""
-    customer = get_customer(session, customer_id)
-    if customer is None:
+def save_call_result(
+    session: Session,
+    *,
+    case_id: str,
+    duration_seconds: int,
+    outcome: str,
+    summary: str,
+    confidence: float,
+) -> CallLog | None:
+    if duration_seconds < 0:
+        raise ValueError("duration_seconds must be non-negative")
+    if not 0 <= confidence <= 1:
+        raise ValueError("confidence must be between 0 and 1")
+    if not outcome.strip():
+        raise ValueError("outcome must not be empty")
+    if not summary.strip():
+        raise ValueError("summary must not be empty")
+    if get_case(session, case_id) is None:
         return None
-    for key, value in fields.items():
-        if key in EDITABLE_FIELDS and value is not None:
-            setattr(customer, key, value)
+
+    call_log = CallLog(
+        case_id=case_id,
+        duration_seconds=duration_seconds,
+        outcome=outcome.strip(),
+        summary=summary.strip(),
+        confidence=confidence,
+    )
+    session.add(call_log)
     session.flush()
-    return customer
+    return call_log
+
+
+def update_case_status(
+    session: Session,
+    *,
+    case_id: str,
+    new_status: str,
+    next_action: str,
+    changed_by: str = "AI_AGENT",
+) -> Case | None:
+    normalized_status = new_status.strip().upper()
+    if not normalized_status:
+        raise ValueError("new_status must not be empty")
+    if len(normalized_status) > 32:
+        raise ValueError("new_status must be at most 32 characters")
+
+    case = get_case(session, case_id)
+    if case is None:
+        return None
+
+    old_status = case.case_status
+    case.case_status = normalized_status
+    case.next_action = next_action.strip()
+    session.add(
+        AuditLog(
+            case_id=case_id,
+            changed_field="case_status",
+            old_value=old_status,
+            new_value=normalized_status,
+            changed_by=changed_by,
+        )
+    )
+    session.flush()
+    return case
+
+
+def get_latest_call(session: Session, case_id: str) -> CallLog | None:
+    statement = (
+        select(CallLog)
+        .where(CallLog.case_id == case_id)
+        .order_by(CallLog.call_datetime.desc(), CallLog.call_id.desc())
+        .limit(1)
+    )
+    return session.scalar(statement)
+
+
+def list_call_logs(session: Session, case_id: str | None = None) -> Sequence[CallLog]:
+    statement = select(CallLog)
+    if case_id is not None:
+        statement = statement.where(CallLog.case_id == case_id)
+    return session.scalars(
+        statement.order_by(CallLog.call_datetime.desc(), CallLog.call_id.desc())
+    ).all()
+
+
+def list_audit_logs(session: Session, case_id: str | None = None) -> Sequence[AuditLog]:
+    statement = select(AuditLog)
+    if case_id is not None:
+        statement = statement.where(AuditLog.case_id == case_id)
+    return session.scalars(
+        statement.order_by(AuditLog.changed_at.desc(), AuditLog.audit_id.desc())
+    ).all()
