@@ -74,6 +74,7 @@ preserved.
 | tool | `get_case(case_id)` | Fetch one case |
 | tool | `save_call_result(...)` | Store an agent call result |
 | tool | `update_case_status(...)` | Update status and write an audit event |
+| tool | `update_case_details(...)` | Update MaLo or other case details with audit events |
 | tool | `get_case_summary(case_id)` | Fetch a case and its latest call |
 | resource | `cases://all` | Return all cases as JSON |
 

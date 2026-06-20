@@ -14,7 +14,9 @@ settings = get_settings()
 
 mcp = FastMCP(
     "fake-nomos-mcp",
-    instructions="Read Nomos cases, record calls, and update case status.",
+    instructions=(
+        "Read Nomos cases, record calls, and update audited case details or status."
+    ),
     host=settings.mcp_host,
     port=settings.mcp_port,
 )
@@ -78,6 +80,51 @@ def update_case_status(case_id: str, new_status: str, next_action: str) -> dict:
             "old_status": old_status,
             "new_status": updated.case_status,
             "next_action": updated.next_action,
+        }
+
+
+@mcp.tool()
+def update_case_details(
+    case_id: str,
+    case_title: str | None = None,
+    supplier: str | None = None,
+    grid_operator: str | None = None,
+    malo_id: str | None = None,
+    address: str | None = None,
+    meter_number: str | None = None,
+    registration_date: str | None = None,
+    supply_start: str | None = None,
+    status_text: str | None = None,
+    symptom: str | None = None,
+    goal: str | None = None,
+) -> dict:
+    """Update supplied case details and audit each changed field.
+
+    Dates must use YYYY-MM-DD. MaLo IDs must contain exactly 11 digits.
+    Omit fields that should remain unchanged.
+    """
+    with session_scope() as session:
+        case, changed_fields = repository.update_case_details(
+            session,
+            case_id=case_id,
+            case_title=case_title,
+            supplier=supplier,
+            grid_operator=grid_operator,
+            malo_id=malo_id,
+            address=address,
+            meter_number=meter_number,
+            registration_date=registration_date,
+            supply_start=supply_start,
+            status_text=status_text,
+            symptom=symptom,
+            goal=goal,
+        )
+        if case is None:
+            return {"success": False, "error": "Case not found"}
+        return {
+            "success": True,
+            "changed_fields": changed_fields,
+            "case": case.as_dict(),
         }
 
 

@@ -3,11 +3,49 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from fake_system.models import AuditLog, CallLog, Case
+
+EDITABLE_CASE_FIELDS = {
+    "case_title",
+    "supplier",
+    "grid_operator",
+    "malo_id",
+    "address",
+    "meter_number",
+    "registration_date",
+    "supply_start",
+    "status_text",
+    "symptom",
+    "goal",
+}
+DATE_FIELDS = {"registration_date", "supply_start"}
+
+
+def _audit_value(value: object) -> str | None:
+    if value is None:
+        return None
+    return value.isoformat() if isinstance(value, date) else str(value)
+
+
+def _normalize_case_field(field: str, value: str) -> str | date | None:
+    normalized = value.strip()
+    if field in DATE_FIELDS:
+        if not normalized:
+            return None
+        try:
+            return date.fromisoformat(normalized)
+        except ValueError as error:
+            raise ValueError(f"{field} must use YYYY-MM-DD format") from error
+    if not normalized:
+        raise ValueError(f"{field} must not be empty")
+    if field == "malo_id" and (not normalized.isdigit() or len(normalized) != 11):
+        raise ValueError("malo_id must contain exactly 11 digits")
+    return normalized
 
 
 def list_cases(session: Session) -> Sequence[Case]:
@@ -82,6 +120,50 @@ def update_case_status(
     )
     session.flush()
     return case
+
+
+def update_case_details(
+    session: Session,
+    *,
+    case_id: str,
+    changed_by: str = "AI_AGENT",
+    **fields: str | None,
+) -> tuple[Case | None, list[str]]:
+    """Update supplied case details and audit every value that actually changes."""
+    provided = {
+        field: value
+        for field, value in fields.items()
+        if field in EDITABLE_CASE_FIELDS and value is not None
+    }
+    if not provided:
+        raise ValueError("At least one editable case field must be provided")
+
+    normalized = {
+        field: _normalize_case_field(field, value) for field, value in provided.items()
+    }
+    case = get_case(session, case_id)
+    if case is None:
+        return None, []
+
+    changed_fields: list[str] = []
+    for field, new_value in normalized.items():
+        old_value = getattr(case, field)
+        if old_value == new_value:
+            continue
+        setattr(case, field, new_value)
+        session.add(
+            AuditLog(
+                case_id=case_id,
+                changed_field=field,
+                old_value=_audit_value(old_value),
+                new_value=_audit_value(new_value),
+                changed_by=changed_by,
+            )
+        )
+        changed_fields.append(field)
+
+    session.flush()
+    return case, changed_fields
 
 
 def get_latest_call(session: Session, case_id: str) -> CallLog | None:

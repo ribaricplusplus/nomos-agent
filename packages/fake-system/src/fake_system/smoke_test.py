@@ -29,6 +29,7 @@ async def _test_mcp(case_id: str) -> None:
                 "get_case",
                 "save_call_result",
                 "update_case_status",
+                "update_case_details",
                 "get_case_summary",
             }
             assert expected <= tool_names
@@ -44,6 +45,17 @@ async def _test_mcp(case_id: str) -> None:
                     "outcome": "MCP smoke test",
                     "summary": "Created through the MCP endpoint",
                     "confidence": 1.0,
+                },
+            )
+            assert not result.isError
+
+            result = await client.call_tool(
+                "update_case_details",
+                {
+                    "case_id": case_id,
+                    "malo_id": "11111111111",
+                    "meter_number": "UPDATED-TEST-METER",
+                    "supply_start": "2026-10-01",
                 },
             )
             assert not result.isError
@@ -124,8 +136,10 @@ def _verify_database(case_id: str) -> None:
         case = repository.get_case(session, case_id)
         assert case is not None
         assert case.case_status == "RESOLVED"
+        assert case.malo_id == "11111111111"
+        assert case.meter_number == "UPDATED-TEST-METER"
         assert len(repository.list_call_logs(session, case_id)) == 2
-        assert len(repository.list_audit_logs(session, case_id)) == 2
+        assert len(repository.list_audit_logs(session, case_id)) == 5
 
 
 def _delete_test_case(case_id: str) -> None:

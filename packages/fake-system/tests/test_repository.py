@@ -85,6 +85,52 @@ def test_update_case_status_creates_audit_log() -> None:
     assert audit.new_value == "RESOLVED"
 
 
+def test_update_case_details_updates_malo_and_audits_change() -> None:
+    case = Case(
+        case_id="NM26-A001",
+        case_title="Test",
+        supplier="Nomos",
+        grid_operator="Grid",
+        malo_id="12345678901",
+        address="Test address",
+        meter_number="METER-1",
+        status_text="Pending",
+        symptom="Test symptom",
+        goal="Test goal",
+        case_status="OPEN",
+        next_action="",
+    )
+    session = Mock()
+    session.get.return_value = case
+
+    updated, changed_fields = repository.update_case_details(
+        session,
+        case_id=case.case_id,
+        malo_id="10987654321",
+        meter_number=" METER-2 ",
+        supply_start="2026-09-01",
+    )
+
+    assert updated is case
+    assert changed_fields == ["malo_id", "meter_number", "supply_start"]
+    assert case.malo_id == "10987654321"
+    assert case.meter_number == "METER-2"
+    assert case.supply_start.isoformat() == "2026-09-01"
+    audits = [call.args[0] for call in session.add.call_args_list]
+    assert [audit.changed_field for audit in audits] == changed_fields
+    assert audits[0].old_value == "12345678901"
+    assert audits[0].new_value == "10987654321"
+
+
+def test_update_case_details_rejects_invalid_malo() -> None:
+    with pytest.raises(ValueError, match="exactly 11 digits"):
+        repository.update_case_details(
+            Mock(),
+            case_id="NM26-A001",
+            malo_id="ABC-123",
+        )
+
+
 def test_seed_file_maps_every_case_to_legacy_columns() -> None:
     cases = _load_cases()
 
