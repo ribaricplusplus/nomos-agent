@@ -162,11 +162,27 @@ For a real external phone call, ensure the user has explicitly asked for that ca
 
 ### 5. Place or run the call, then retrieve real output
 
+#### Single-call discipline for real outbound phone calls
+
+A single explicit user authorization covers **exactly one** outbound phone-call attempt to **one** target number for **one** case. Treat the returned call ID as the active attempt and keep working with that same ID until it reaches a terminal state.
+
+- After starting a real call, write down the Vapi/Twilio/Bland call ID before doing anything else.
+- Poll or fetch status for that same call ID until the provider reports a terminal state such as `ended`, `completed`, `failed`, `busy`, `no-answer`, `voicemail`, `silence-timed-out`, or an explicit provider error.
+- Do **not** place a second call just because the status is `queued`, `ringing`, `in-progress`, missing a transcript, missing a summary, or because the provider UI/API lags.
+- If the user answers the call but the transcript/summary is not ready yet, wait and re-poll the same call ID. If it still yields no useful result, report the call as inconclusive.
+- If cleanup is needed, use provider-specific end/cancel/delete controls for the existing call only; never start a new call as a cleanup or diagnostic step.
+- If the first call fails, is missed, is silent, is ended by the customer, hits voicemail, or produces no usable transcript, stop and ask Bruno for fresh explicit authorization before retrying.
+- Before any retry, state the previous call ID and final status so the duplicate-call risk is visible.
+
+Workflow:
+
 1. Update/create the Vapi assistant with the base prompt plus appended case context.
 2. Ensure Vapi has the required tools (at minimum DTMF/keypad and end-call behavior when supported).
-3. Start the simulation or call.
-4. Retrieve the real transcript, structured report, call ID, run ID, status, and any tool-call logs.
-5. If the call failed, timed out, reached voicemail, got stuck in an IVR, or did not produce an answer, report that honestly and do not update the case as if it succeeded.
+3. Start the simulation or the **one authorized call**.
+4. Record the returned call/run ID immediately.
+5. Retrieve the real transcript, structured report, call ID, run ID, status, and any tool-call logs by polling that same ID.
+6. If the call failed, timed out, reached voicemail, got stuck in an IVR, was ended by the customer, or did not produce an answer, report that honestly and do not update the case as if it succeeded.
+7. Do not retry or place another real call unless Bruno explicitly authorizes a new attempt after seeing the prior attempt's status.
 
 ### 6. Interpret the call result by scenario
 
@@ -250,6 +266,8 @@ Evidence:
 - Do not claim a backend/Nomos update unless a real MCP tool reports success.
 - Do not place a call if the case lookup failed and the user has not provided enough synthetic case context manually.
 - Do not place a real external call if the target phone number is absent, ambiguous, unauthorized, or outside the challenge/test constraints.
+- Do not place more than one outbound real phone call per explicit authorization. Provider lag, `ringing`, `in-progress`, missing transcript/summary, silence, voicemail, or customer-ended status is not permission to retry.
+- Do not start a second call as a way to test, recover, cancel, or debug the first call. Work from the original call ID and ask Bruno before any retry.
 - Do not use real customer data for challenge runs. The public fixtures are synthetic.
 - Do not ask the clerk for passwords or security credentials; clearing calls do not require them.
 - Do not use DTMF/keypad in response to a human saying a department name. DTMF is only for recorded automated menus that explicitly ask for keypad input.
@@ -266,6 +284,7 @@ Evidence:
 5. **Ignoring inconclusive outcomes.** Real calls may end with an internal escalation and promised callback. Log and follow up; do not fabricate resolution.
 6. **Updating unsupported fields.** If the MCP tool only supports generic `notes`/`status`, write a note/status only; do not pretend case-specific fields were stored.
 7. **Dialing real parties during challenge work.** Use provided synthetic/test targets unless Bruno explicitly moves to real-call testing.
+8. **Retrying while the provider status lags.** `ringing`, `in-progress`, a missing transcript, or a customer-ended/silence status without a summary means poll the same call ID and report inconclusive if needed; it is not permission to place another call.
 
 ## Verification Checklist
 
@@ -274,6 +293,9 @@ Evidence:
 - [ ] Vapi prompt used `templates/vapi-clearing-call-assistant-prompt.md` plus appended case context.
 - [ ] Expected answers/oracles were not included in the Vapi assistant prompt.
 - [ ] Call/simulation was actually run, or the blocker was reported honestly.
+- [ ] For real calls, exactly one outbound call ID was created per explicit authorization.
+- [ ] Non-terminal provider statuses (`queued`, `ringing`, `in-progress`, missing transcript/summary) were handled by polling the same call ID, not by placing another call.
+- [ ] Any retry after a failed, missed, silent, customer-ended, or inconclusive call was separately authorized by Bruno.
 - [ ] Transcript/structured output was inspected before extracting facts.
 - [ ] Long identifiers were read back/confirmed before being treated as high-confidence.
 - [ ] Nomos update was performed through MCP, or the lack of MCP update capability was reported with a pending payload.

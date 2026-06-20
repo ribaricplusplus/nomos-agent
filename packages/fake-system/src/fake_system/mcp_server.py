@@ -15,7 +15,12 @@ settings = get_settings()
 mcp = FastMCP(
     "fake-nomos-mcp",
     instructions=(
-        "Read Nomos cases, record calls, and update audited case details or status."
+        "Read Nomos cases, record calls, and update audited case details or status. "
+        "Outbound phone calls are external side effects: one explicit user "
+        "authorization covers exactly one call attempt. If a call is ringing, "
+        "in progress, silent, customer-ended, or missing a transcript, clients "
+        "must poll the same call ID and must not retry without fresh user "
+        "authorization."
     ),
     host=settings.mcp_host,
     port=settings.mcp_port,
