@@ -1,7 +1,7 @@
 ---
 name: nomos-clearing-calls
-description: Use when the user mentions Nomos case numbers, MaLo IDs, meter numbers, German grid-operator/supplier signup issues, asks what to do with a Nomos case, or requests a Nomos clearing call. Defines case context, German call conduct, MCP update rules, and the standard Vapi call/simulation procedure.
-version: 1.2.1
+description: Use when the user mentions Nomos case numbers, MaLo IDs, meter numbers, German grid-operator/supplier signup issues, asks what to do with a Nomos case, or requests a Nomos clearing call. Defines case context, SSML-only German call conduct, MCP update rules, and the standard Vapi call/simulation procedure.
+version: 1.3.0
 author: Bruno + Hermes Agent
 license: MIT
 metadata:
@@ -123,10 +123,12 @@ Use the installed helper script, normally:
 
 ```bash
 SCRIPT="/home/bruno/.hermes/profiles/vapihermes/skills/productivity/telephony/scripts/telephony.py"
+# Run from a synced Hermes Agent uv environment, or activate that environment first.
 VAPI_ENABLE_SSML_PARSING="${VAPI_ENABLE_SSML_PARSING:-true}" \
 VAPI_VOICE_SPEED="${VAPI_VOICE_SPEED:-0.85}" \
+VAPI_11LABS_MODEL="${VAPI_11LABS_MODEL:-eleven_flash_v2_5}" \
 VAPI_11LABS_LANGUAGE="${VAPI_11LABS_LANGUAGE:-de}" \
-python3 "$SCRIPT" ai-call '<E164 phone number>' '<task prompt>' \
+uv run python "$SCRIPT" ai-call '<E164 phone number>' '<task prompt>' \
   --provider vapi \
   --first-sentence '<short German greeting mentioning Nomos and the case ID>' \
   --max-duration 5
@@ -141,7 +143,7 @@ SCRIPT="$(find ~/.hermes/profiles/vapihermes/skills ~/.hermes/skills -path '*/te
 The call command returns a Vapi `call_id`. Poll that exact call:
 
 ```bash
-python3 "$SCRIPT" ai-status '<call_id>' --provider vapi
+uv run python "$SCRIPT" ai-status '<call_id>' --provider vapi
 ```
 
 ### Vapi voice settings for identifier pacing
@@ -149,7 +151,7 @@ python3 "$SCRIPT" ai-status '<call_id>' --provider vapi
 Before a call that will read MaLo IDs, meter numbers, phone numbers, or reference numbers, verify the Vapi voice settings:
 
 ```bash
-python3 "$SCRIPT" diagnose
+uv run python "$SCRIPT" diagnose
 ```
 
 For the standard `telephony.py` helper with ElevenLabs (`voice_provider: 11labs`), prefer these settings in `~/.hermes/.env` or the Hermes config:
@@ -157,30 +159,19 @@ For the standard `telephony.py` helper with ElevenLabs (`voice_provider: 11labs`
 ```env
 VAPI_ENABLE_SSML_PARSING=true
 VAPI_VOICE_SPEED=0.85
+VAPI_11LABS_MODEL=eleven_flash_v2_5
 VAPI_11LABS_LANGUAGE=de
 ```
 
-Optional, if you need to pin a known SSML-capable ElevenLabs model:
+Do not rely on the LLM prompt alone for number pacing. The prompt must spell or chunk identifiers, and the voice layer must be configured to honor SSML pauses.
 
-```env
-VAPI_11LABS_MODEL=eleven_turbo_v2_5
-```
+For Nomos calls, the assistant must use **SSML-only output**:
 
-Do not rely on the LLM prompt alone for number pacing. The prompt should spell or chunk identifiers, and the voice layer should be configured to honor SSML pauses. If SSML parsing or speed control is not available for the selected voice/provider, the prompt must fall back to German digit words and short turns.
-
-Vapi voice input formatting is enabled by default. It keeps `<break>` and `<spell>` tags, but may remove other angle-bracket tags before TTS. Therefore, with the standard helper, use the **inline identifier SSML** mode:
-
-- Use German digit words plus `<break time="350ms" />` to `<break time="500ms" />` between groups.
-- Use `<spell>...</spell>` only for alphanumeric chunks that must be read character-by-character.
-- Do not use `<speak>`, `<prosody>`, `<say-as>`, `<emphasis>`, `<phoneme>`, or `<sub>` in normal live-call turns unless the assistant's `voice.chunkPlan.formatPlan` is explicitly configured to pass those tags through and the provider supports them.
-
-If directly editing a persistent Vapi assistant and full SSML is required, configure both layers:
-
-1. Voice provider: enable SSML parsing, slow the voice if supported, and use a model that supports the chosen SSML tags.
-2. Vapi `assistant.voice.chunkPlan.formatPlan`: either disable formatting for raw SSML or use `formattersEnabled` so `removeAngleBrackets` does not strip full SSML tags.
-3. Prompt: write all numbers already normalized for speech, because disabling voice formatting can make raw numbers, dates, and emails sound worse.
-
-For these Nomos calls, full SSML is rarely needed. Inline `<break>`/`<spell>` plus German digit words is the default because it survives Vapi's formatter and solves the "numbers read too quickly" failure mode.
+- Every spoken assistant response must be exactly one valid `<speak>...</speak>` document.
+- No plain text, Markdown, code fences, XML declarations, comments, or explanations outside `<speak>`.
+- Use only the tested SSML subset in the reusable template: `<speak>` plus `<break time="300ms" />`, `<break time="400ms" />`, or `<break time="500ms" />`.
+- Do not use `<prosody>`, `<say-as>`, `<emphasis>`, `<phoneme>`, `<sub>`, `<spell>`, `<p>`, or `<s>` in this Vapi/ElevenLabs loop.
+- Do not rely on raw digits for MaLo IDs, meter numbers, phone numbers, dates, or reference numbers. Write German spoken words and insert short `<break>` tags between groups.
 
 ### German first sentence
 
@@ -214,16 +205,18 @@ Information to obtain: <specific unknowns>
 
 Call instructions:
 - Speak German only, naturally and briefly.
+- Output SSML only: every spoken response must be exactly one valid `<speak>...</speak>` document.
+- Do not output plain text, Markdown, code fences, XML declarations, comments, or explanations outside `<speak>`.
+- If you use DTMF/keypad or endCall tools, call the tool silently. If you speak afterward, output a fresh `<speak>...</speak>` document.
 - Speak slowly and clearly. Clarity is more important than speed.
 - First words to a human: disclose that you are an AI from Nomos GmbH.
 - Mention the case ID and the specific process step: MaLo-Ident, Netzanmeldung, Kündigung, Lieferantenwechsel, or Marktkommunikation.
 - Offer relevant identifiers proactively, but not all in one breath. Use one important identifier per sentence or turn.
 - Preferred order: case ID, MaLo/MaLo-ID, Zählernummer, Lieferstelle, dates.
-- Default voice output mode: inline identifier SSML. Use German digit words and short `<break>` tags for critical identifiers.
-- Read MaLo IDs digit-by-digit or in short groups with pauses, for example: "Die MaLo-ID lautet: acht, vier, fünf <break time=\"400ms\" /> sieben, sieben, eins <break time=\"400ms\" /> zwei, drei, null <break time=\"400ms\" /> eins, neun."
-- Read meter numbers in chunks, for example: "Die Zählernummer lautet: eins E B E <break time=\"400ms\" /> neun null null null <break time=\"400ms\" /> eins eins <break time=\"400ms\" /> null acht eins eins."
-- Use `<spell>...</spell>` for alphanumeric chunks only when character-by-character pronunciation matters, for example: "Die Zählernummer beginnt mit <spell>1 E B E</spell> <break time=\"400ms\" /> danach neun null null null."
-- Do not use full SSML tags such as `<speak>`, `<prosody>`, `<say-as>`, or `<emphasis>` unless the case context or Hermes explicitly says full SSML passthrough is configured.
+- Use only `<speak>` and short `<break>` tags in this test loop.
+- Do not use `<prosody>`, `<say-as>`, `<emphasis>`, `<phoneme>`, `<sub>`, `<spell>`, `<p>`, or `<s>`.
+- Read MaLo IDs digit-by-digit or in short groups with German digit words and pauses, for example: `<speak>Die MaLo-ID lautet: acht, vier, fünf <break time="400ms" /> sieben, sieben, eins <break time="400ms" /> zwei, drei, null <break time="400ms" /> eins, neun. <break time="300ms" /> Ist das so korrekt?</speak>`
+- Read meter numbers in chunks, for example: `<speak>Die Zählernummer lautet: eins E B E <break time="400ms" /> neun null null null <break time="400ms" /> eins eins <break time="400ms" /> null acht eins eins. <break time="300ms" /> Haben Sie die Nummer so gefunden?</speak>`
 - After reading an important number, pause and ask for confirmation before continuing.
 - Ask the exact case-specific questions needed to resolve the case.
 - If a long identifier is provided, read it back digit-by-digit or in short chunks.
@@ -246,7 +239,7 @@ templates/vapi-clearing-call-assistant-prompt.md
 
 Append a `# Case context for this call` section with only facts from MCP, user-provided synthetic context, or fixture docs. Unknown fields should be omitted or explicitly marked `unknown`.
 
-The base prompt is German-call focused: it requires German speech, AI disclosure to the first human, DTMF only for recorded menus, slow one-identifier-at-a-time pacing, inline identifier SSML, digit-by-digit readback, scenario-specific goals, and German back-office note intent.
+The base prompt is German-call focused: it requires SSML-only assistant output, German speech inside SSML, AI disclosure to the first human, DTMF only for recorded menus, slow one-identifier-at-a-time pacing, `<break>` pauses, digit-by-digit readback, scenario-specific goals, and German back-office note intent.
 
 ## After the Call or Simulation
 
@@ -350,7 +343,7 @@ Back-office note:
 - A reference number is useful but not always the win. The real reason and next step matter most.
 - Do not turn the workflow into Hermes-as-Vapi-Custom-LLM unless the user explicitly asks; default to Vapi handling real-time voice and Hermes orchestrating workflow/post-call actions.
 - Keep the skill generic: do not include a specific user's personal name in reusable Nomos instructions; say "the user" or write in neutral terms.
-- Do not add full SSML tags to live-call prompts unless Vapi formatting is configured to pass them through. If unsure, use only `<break>`/`<spell>` and German digit words.
+- Do not let the target assistant answer in plain text. It must output one `<speak>...</speak>` document for every spoken turn, using only the tested `<break>` subset.
 
 ## Pitfalls
 
@@ -363,15 +356,16 @@ Back-office note:
 7. **Dialing real parties during challenge work.** Use provided synthetic/test targets unless the user explicitly moves to real-call testing.
 8. **Retrying while provider status lags.** `ringing`, `in-progress`, missing transcript/summary, or customer-ended/silence status means poll the same call ID and report inconclusive if needed; it is not permission to place another call.
 9. **Losing German call focus.** The live phone agent should speak German, use German market vocabulary, disclose AI status to the first human, and produce a German back-office note.
-10. **Unsupported SSML.** Generic SSML tags may be stripped by Vapi formatting or ignored by a voice model. Test the exact provider/model/settings and fall back to `<break>`/`<spell>` plus words if tags leak into speech or disappear.
+10. **Unsupported SSML.** Generic SSML tags may be stripped by Vapi formatting or ignored by a voice model. In this loop, use only `<speak>` and tested `<break>` pauses, with numbers written as spoken German words.
 
 ## Verification Checklist
 
 - [ ] Case data came from MCP, explicit user input, or challenge fixture docs.
 - [ ] Scenario was classified before calling.
 - [ ] German call behavior was preserved: first-human AI disclosure, German language, German market terms, DTMF only for IVR, digit readback.
-- [ ] Vapi voice settings were checked; ElevenLabs calls use SSML parsing and a slower voice speed when available.
-- [ ] Identifier output used inline `<break>`/`<spell>` or a verified full-SSML passthrough configuration.
+- [ ] Vapi voice settings were checked; ElevenLabs calls use SSML parsing, `eleven_flash_v2_5`, and a slower voice speed when available.
+- [ ] Assistant output was SSML-only: exactly one `<speak>...</speak>` document per spoken turn.
+- [ ] Identifier output used German spoken words with `<break time="300ms" />`, `<break time="400ms" />`, or `<break time="500ms" />` pauses.
 - [ ] Vapi prompt used `templates/vapi-clearing-call-assistant-prompt.md` or the documented `telephony.py ai-call --provider vapi` helper prompt shape.
 - [ ] Expected answers/oracles were not included in the Vapi assistant/call prompt.
 - [ ] Call/simulation was actually run, or the blocker was reported honestly.
