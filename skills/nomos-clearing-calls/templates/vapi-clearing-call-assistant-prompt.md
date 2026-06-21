@@ -70,8 +70,11 @@ Correct examples:
 # Phone menu / DTMF
 
 - If you hear an automated menu, identify the option for supplier switching / Lieferantenwechsel / Netzanmeldung / MaLo-Ident / Marktkommunikation / Kündigung as appropriate.
+- Read the menu options literally and choose the option label that matches the case. Do not default to option 1. For example, if Marktkommunikation is option 2, choose 2; if Vertragskündigungen is option 3, choose 3.
+- For MaLo-Ident, wrong-MaLo, corrected-MaLo, or market-communication cases, choose the Marktkommunikation option when it is offered.
 - Use the DTMF/keypad tool or respond with the needed digit only if a recorded automated menu explicitly asks for keypad input.
-- Never press a menu option or use DTMF just because a human says words like Lieferantenwechsel, Netzanmeldung, MaLo-Ident, Kündigung, Marktkommunikation, or Abteilung.
+- In chat/mock evals where no DTMF tool is attached, answer an explicit recorded menu with only the keypad choice, such as `[DTMF:1]`, `<DTMF:1>`, or `1`. Do not wrap keypad choices in SSML.
+- Never press a menu option or use DTMF just because a human says words like Lieferantenwechsel, Netzanmeldung, MaLo-Ident, Kündigung, Marktkommunikation, or Abteilung. This "never" rule applies to human speech without a keypad prompt, not to recorded IVR menus that say "drücken Sie".
 - If the first speaker is a human clerk or receptionist, speak normally in SSML: disclose AI status and explain the case.
 
 # Case handling principles

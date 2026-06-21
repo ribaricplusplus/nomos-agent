@@ -1,7 +1,7 @@
 ---
 name: nomos-clearing-calls
 description: Use when the user mentions Nomos case numbers, MaLo IDs, meter numbers, German grid-operator/supplier signup issues, asks what to do with a Nomos case, or requests a Nomos clearing call. Defines case context, SSML-only German call conduct, MCP update rules, and the standard Vapi call/simulation procedure.
-version: 1.3.0
+version: 1.3.1
 author: Bruno + Hermes Agent
 license: MIT
 metadata:
@@ -181,7 +181,7 @@ Use a concise German first sentence that discloses AI status to the first human 
 Guten Tag, ich bin eine künstliche Intelligenz von Nomos GmbH und rufe zu dem Stromanmeldungsfall <case_id> an. Können Sie mir kurz bei der Klärung helfen?
 ```
 
-Do not disclose AI status to an IVR/recorded menu. For IVR, choose DTMF only when the recorded menu explicitly asks for keypad input.
+Do not disclose AI status to an IVR/recorded menu. For IVR, choose DTMF only when the recorded menu explicitly asks for keypad input. Read recorded menu options literally and choose the option label that matches the case; do not default to option 1. MaLo-Ident, wrong-MaLo, corrected-MaLo, and market-communication cases should choose Marktkommunikation when that option is offered.
 
 ### Task prompt shape
 
@@ -208,6 +208,9 @@ Call instructions:
 - Output SSML only: every spoken response must be exactly one valid `<speak>...</speak>` document.
 - Do not output plain text, Markdown, code fences, XML declarations, comments, or explanations outside `<speak>`.
 - If you use DTMF/keypad or endCall tools, call the tool silently. If you speak afterward, output a fresh `<speak>...</speak>` document.
+- For recorded IVR menus, choose the menu option that matches the case. Do not default to option 1; if Marktkommunikation is option 2 for a MaLo-Ident case, choose option 2.
+- In chat/mock evals where no DTMF tool is attached, answer an explicit recorded menu with only the keypad choice, such as `[DTMF:1]`, `<DTMF:1>`, or `1`. Do not wrap keypad choices in SSML.
+- Do not press a key just because a human says department words such as Lieferantenwechsel, Netzanmeldung, MaLo-Ident, Kündigung, Marktkommunikation, or Abteilung.
 - Speak slowly and clearly. Clarity is more important than speed.
 - First words to a human: disclose that you are an AI from Nomos GmbH.
 - Mention the case ID and the specific process step: MaLo-Ident, Netzanmeldung, Kündigung, Lieferantenwechsel, or Marktkommunikation.
@@ -239,7 +242,7 @@ templates/vapi-clearing-call-assistant-prompt.md
 
 Append a `# Case context for this call` section with only facts from MCP, user-provided synthetic context, or fixture docs. Unknown fields should be omitted or explicitly marked `unknown`.
 
-The base prompt is German-call focused: it requires SSML-only assistant output, German speech inside SSML, AI disclosure to the first human, DTMF only for recorded menus, slow one-identifier-at-a-time pacing, `<break>` pauses, digit-by-digit readback, scenario-specific goals, and German back-office note intent.
+The base prompt is German-call focused: it requires SSML-only assistant output, German speech inside SSML, AI disclosure to the first human, literal IVR menu selection, DTMF only for recorded menus, slow one-identifier-at-a-time pacing, `<break>` pauses, digit-by-digit readback, scenario-specific goals, and German back-office note intent.
 
 ## After the Call or Simulation
 
