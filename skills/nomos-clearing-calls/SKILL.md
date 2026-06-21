@@ -243,7 +243,7 @@ For Nomos calls, the assistant must use **SSML-only output**:
 
 ### German first sentence
 
-Use a concise German first sentence that discloses AI status to the first human and identifies Nomos/case context. Example:
+Use exactly one concise German first sentence path. For Vapi outbound calls, prefer `--first-sentence` as the provider-level `firstMessage`, and ensure the assistant prompt says not to repeat an introduction that has already been spoken. The first sentence should disclose AI status to the first human and identify Nomos/case context. Example:
 
 ```text
 Guten Tag, ich bin eine künstliche Intelligenz von Nomos GmbH und rufe zu dem Stromanmeldungsfall <case_id> an. Können Sie mir kurz bei der Klärung helfen?
