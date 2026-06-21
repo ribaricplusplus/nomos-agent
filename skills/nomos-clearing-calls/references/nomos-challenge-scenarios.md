@@ -4,14 +4,14 @@ Source of truth inspected: `https://github.com/nomos-energy/voice-agent` (`READM
 
 ## Challenge objective
 
-Build a German AI voice agent that clears stuck electricity signup cases. The agent receives structured case data, places or simulates the call, talks to a German market back-office clerk, captures the real diagnosis and next step, then writes a clean structured result and back-office note.
+Build an English-speaking AI voice agent that clears stuck electricity signup cases. The agent receives structured case data, places or simulates the call, talks to an English-speaking market back-office clerk, captures the real diagnosis and next step, then writes a clean structured result and back-office note.
 
 The agent must be pleasant enough that a clerk is willing to talk to it, but winning means moving the case forward.
 
 ## Non-negotiable rules
 
 - First words to a **human** must disclose the agent is AI.
-- Calls are in German.
+- Calls are in English.
 - Use only synthetic challenge data. Do not use real customer details.
 - In challenge mode, dial/use only provided clerk-agent/test targets, not real grid-operator or customer phone numbers.
 - Phone menus/IVRs are not humans. Use DTMF only when a recorded menu explicitly asks for keypad input.
@@ -77,9 +77,9 @@ Example fixtures:
 
 ## Call quality patterns from recordings
 
-- Begin with concise AI disclosure to a human: "Guten Tag, hier spricht ein KI-Assistent...".
+- Begin with concise AI disclosure to a human: "Hello, this is an AI assistant calling from Nomos...".
 - State the case in one or two sentences and offer the relevant identifiers immediately.
-- Use the clerk's vocabulary: Lieferantenwechsel, Netzanmeldung, MaLo-Ident, Kündigung, Marktkommunikation, Vorgangsnummer.
+- Use the clerk's vocabulary: supplier switching, grid registration, MaLo identification, cancellation, market communication, and reference number. Recognize process terms such as Lieferantenwechsel, Netzanmeldung, MaLo-Ident, Kündigung, Marktkommunikation, and Vorgangsnummer if they appear.
 - Let the clerk search. Pauses and hold music are normal.
 - Confirm IDs carefully:
   - MaLo: digit-by-digit.
@@ -99,7 +99,7 @@ A win is a structured result with enough information for Nomos to act:
 - `resubmission_needed`
 - `next_action_owner`
 - `next_action`
-- `backoffice_note_de`
+- `backoffice_note_de` with English prose for this English-focused skill
 - `confidence`
 - supporting transcript evidence
 

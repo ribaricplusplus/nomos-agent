@@ -85,36 +85,36 @@ Adapt values by scenario:
 
 ## Back-office note style
 
-Keep notes short, factual, and action-oriented. Example templates:
+Keep notes short, factual, and action-oriented. Write the note prose in English while preserving necessary energy-market terms when they are the actual process names. Keep the existing `backoffice_note_de` field name when that is the current schema key, but fill it with English text for this English-focused skill. Example templates:
 
 ### Corrected MaLo
 
 ```text
-Kläranruf mit <partner> am <date>: Fall zu <address>/<meter>. Korrekte MaLo laut Sachbearbeitung: <malo>, im Gespräch ziffernweise zurückgelesen und bestätigt. Nächster Schritt: Netzanmeldung mit korrigierter MaLo erneut senden.
+Clearing call with <partner> on <date>: case for <address>/<meter>. Correct MaLo according to the back-office clerk: <malo>, read back digit by digit and confirmed during the call. Next step: resend grid registration with the corrected MaLo.
 ```
 
 ### Bounced registration / removed meter
 
 ```text
-Kläranruf mit <partner> am <date>: Netzanmeldung mit Status "Marktlokation nimmt nicht teil" geprüft. Laut Sachbearbeitung ist der zugehörige Zähler/Anschluss nicht mehr aktiv (<reason/date if given>); alte MaLo kann nicht verwendet werden. Nächster Schritt: Kunde kontaktieren / neue Anlage klären. Keine erneute Anmeldung auf alter MaLo.
+Clearing call with <partner> on <date>: checked grid registration status "Marktlokation nimmt nicht teil". According to the back-office clerk, the related meter/connection is no longer active (<reason/date if given>); the old MaLo cannot be used. Next step: contact the customer / clarify the new installation. Do not resubmit on the old MaLo.
 ```
 
 ### Silent registration
 
 ```text
-Kläranruf mit <partner> am <date>: Anmeldung vom <sent_date> liegt vor und ist fachlich korrekt, wurde aber noch nicht weiterbearbeitet. Keine erneute Einreichung erforderlich. Vorgangsnummer: <reference>. Erwartete Bearbeitung/Rückmeldung: <timing>.
+Clearing call with <partner> on <date>: registration from <sent_date> has been received and is technically valid, but has not been processed further yet. No resubmission is required. Reference: <reference>. Expected processing/update: <timing>.
 ```
 
 ### Kündigung / previous supplier blocker
 
 ```text
-Kläranruf zu Kündigung/Altlieferant am <date>: Status laut Sachbearbeitung: <diagnosis>. Nächster Schritt: <owner> soll <action>. Referenz: <reference or none>. Folgeaktion: <email/customer/reminder/follow-up>.
+Clearing call about cancellation/previous supplier on <date>: status according to the back-office clerk: <diagnosis>. Next step: <owner> should <action>. Reference: <reference or none>. Follow-up action: <email/customer/reminder/follow-up>.
 ```
 
 ### Escalation / inconclusive
 
 ```text
-Kläranruf mit <partner> am <date>: Fall konnte nicht abschließend geklärt werden. Sachbearbeitung hat an <department/owner> eskaliert. Vorgangsnummer: <reference>. Offene Frage: <question>. Erwartete Rückmeldung: <timing>. Nächster Schritt: warten/nachfassen.
+Clearing call with <partner> on <date>: the case could not be fully clarified. The back office escalated it to <department/owner>. Reference: <reference>. Open question: <question>. Expected update: <timing>. Next step: wait/follow up.
 ```
 
 ## Behavior while MCP surface is incomplete

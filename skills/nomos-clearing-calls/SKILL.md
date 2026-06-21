@@ -1,12 +1,12 @@
 ---
 name: nomos-clearing-calls
-description: Use when the user mentions Nomos case numbers, MaLo IDs, meter numbers, German grid-operator/supplier signup issues, asks what to do with a Nomos case, or requests a Nomos clearing call. Defines case context, SSML-only German call conduct, MCP update rules, and the standard Vapi call/simulation procedure.
+description: Use when the user mentions Nomos case numbers, MaLo IDs, meter numbers, electricity grid-operator/supplier signup issues, asks what to do with a Nomos case, or requests a Nomos clearing call. Defines case context, SSML-only English call conduct, MCP update rules, and the standard Vapi call/simulation procedure.
 version: 1.4.1
 author: Bruno + Hermes Agent
 license: MIT
 metadata:
   hermes:
-    tags: [nomos, malo, case-management, energy-market, mcp, vapi, german]
+    tags: [nomos, malo, case-management, energy-market, mcp, vapi, english]
     related_skills: [voice-agent-orchestration, voice-agent-platforms, native-mcp, telephony]
 ---
 
@@ -14,11 +14,11 @@ metadata:
 
 ## Purpose
 
-Use this skill to understand references to Nomos cases, MaLo numbers, meter numbers, suppliers, grid operators, German market-communication terms, or stuck electricity signup cases, and to run the standard Nomos clearing-call workflow when the user authorizes a call or simulation.
+Use this skill to understand references to Nomos cases, MaLo numbers, meter numbers, suppliers, grid operators, electricity market-communication terms, or stuck electricity signup cases, and to run the standard Nomos clearing-call workflow when the user authorizes a call or simulation.
 
 This skill is deliberately broader than “correct the MaLo”. A Nomos clearing case may involve MaLo-Ident, a bounced Netzanmeldung, a silent registration after APERAK, a Kündigung/old-supplier blocker, another registration already in progress, or an inconclusive operator escalation. The job is to identify the case type, get the real diagnosis and next action, and update Nomos with only confirmed facts.
 
-Hermes is the workflow orchestrator: read case context, classify the scenario, prepare the prompt/call, inspect the returned transcript or structured report, and update Nomos through MCP tools. Vapi/telephony is the real-time voice layer: spoken German conversation, interruptions, DTMF/keypad, and call lifecycle.
+Hermes is the workflow orchestrator: read case context, classify the scenario, prepare the prompt/call, inspect the returned transcript or structured report, and update Nomos through MCP tools. Vapi/telephony is the real-time voice layer: spoken English conversation, interruptions, DTMF/keypad, and call lifecycle.
 
 For phone calls, use the Nomos-specific Vapi/`telephony.py ai-call` procedure documented below together with the `telephony` skill. Do not bypass the helper with ad-hoc Vapi API calls unless the helper is broken or stale.
 
@@ -46,7 +46,7 @@ For generic Vapi/provider setup, raw Vapi API schemas, simulations unrelated to 
 | Term the user may use | Meaning |
 | --- | --- |
 | `case`, `case number`, `case ID` | A Nomos case record, usually retrievable through `mcp_nomos_get_case` or `mcp_nomos_get_case_summary`. |
-| `MaLo`, `MaLo-ID`, `Malo`, `market-location ID`, `Marktlokation` | The German electricity market-location identifier, usually an 11-digit number. |
+| `MaLo`, `MaLo-ID`, `Malo`, `market-location ID`, `Marktlokation` | The electricity market-location identifier, usually an 11-digit number. |
 | `wrong MaLo` | The stored market-location ID may not match the meter/address/delivery point. Confirm before changing it. |
 | `meter number`, `Zählernummer` | The physical/electronic meter identifier. Often disambiguates buildings with multiple delivery points. |
 | `grid operator`, `Netzbetreiber`, `VNB` | The network/grid company that may identify or confirm the market location and registration status. |
@@ -92,14 +92,14 @@ Then classify the scenario before prompting or calling.
 
 ## Interpreting Common Case Types
 
-| Situation | What it usually means | What a useful resolution contains | German call focus |
+| Situation | What it usually means | What a useful resolution contains | English call focus |
 | --- | --- | --- | --- |
-| Wrong or uncertain MaLo / MaLo-Ident | Stored market-location ID may not match meter/address, or automated ID failed. | Correct MaLo, or a documented reason no MaLo is available yet, plus next action. | Use address + Zählernummer; read MaLo digit-by-digit; ask whether to submit with the corrected Marktlokation. |
-| Registration rejected/bounced / Netzanmeldung | A submitted registration failed, e.g. `Marktlokation nimmt nicht teil`. | Actual rejection reason and whether resubmission, customer action, or grid-operator action is needed. | Ask whether MaLo is invalid/dead, Zähler was ausgebaut, Baustromzähler, neue Anlage, or another registration blocks it. |
-| Silent/stuck registration | Receipt/APERAK may exist but no confirmation arrived. | Whether it was received, current processing status, reference number if any, and whether resubmission is needed. | Ask if the Anmeldung is received and valid, why it stalled, whether Nomos must resend, and expected processing date. |
+| Wrong or uncertain MaLo / MaLo-Ident | Stored market-location ID may not match meter/address, or automated ID failed. | Correct MaLo, or a documented reason no MaLo is available yet, plus next action. | Use address + meter number/Zählernummer; read MaLo digit-by-digit; ask whether to submit with the corrected market location. |
+| Registration rejected/bounced / Netzanmeldung | A submitted registration failed, e.g. `Marktlokation nimmt nicht teil`. | Actual rejection reason and whether resubmission, customer action, or grid-operator action is needed. | Ask whether MaLo is invalid/dead, whether the meter was removed, whether a temporary construction meter or new installation is involved, or whether another registration blocks it. |
+| Silent/stuck registration | Receipt/APERAK may exist but no confirmation arrived. | Whether it was received, current processing status, reference number if any, and whether resubmission is needed. | Ask if the registration is received and valid, why it stalled, whether Nomos must resend, and expected processing date. |
 | Previous-supplier cancellation / Kündigung | Old supplier cancellation may be blocking the switch. | Whether cancellation was received/accepted/rejected and who owns the next step. | Ask whether old supplier, customer, or Nomos must act; capture reference and follow-up channel. |
 | Competing registration/process | Another supplier or market process is already active. | Which process blocks Nomos and what must happen before Nomos can continue. | Ask what process is active, who owns it, whether waiting/customer clarification is required, and when retry makes sense. |
-| Escalated/inconclusive | The other party cannot resolve immediately. | Reference number, owning department/person, promised follow-up window, and exact unresolved question. | Stay patient through hold music; capture Zuarbeit/Fachbereich, Vorgangsnummer, and promised Rückmeldung. |
+| Escalated/inconclusive | The other party cannot resolve immediately. | Reference number, owning department/person, promised follow-up window, and exact unresolved question. | Stay patient through hold music; capture internal support department/owner, reference number, and promised update. |
 
 Do not force every case into “get corrected MaLo.” A corrected MaLo matters only when the case actually concerns market-location identification or a wrong market-location ID.
 
@@ -128,7 +128,7 @@ NOMOS_SKILL_DIR="${NOMOS_SKILL_DIR:-/home/bruno/projects/nomos-agent/skills/nomo
 export VAPI_ENABLE_SSML_PARSING="${VAPI_ENABLE_SSML_PARSING:-true}"
 export VAPI_VOICE_SPEED="${VAPI_VOICE_SPEED:-0.85}"
 export VAPI_11LABS_MODEL="${VAPI_11LABS_MODEL:-eleven_flash_v2_5}"
-export VAPI_11LABS_LANGUAGE="${VAPI_11LABS_LANGUAGE:-de}"
+export VAPI_11LABS_LANGUAGE="${VAPI_11LABS_LANGUAGE:-en}"
 ```
 
 If the path changes, locate it with:
@@ -148,7 +148,7 @@ Create or update the durable Nomos Vapi assistant before repeated calls, and rer
   --max-duration 5)
 ```
 
-The assistant is stable behavior: German call conduct, SSML-only output, AI disclosure, DTMF rules, identifier pacing, and Nomos clearing-call policy. Do not put live case facts into the reusable assistant prompt. Live case facts belong in the per-call task file passed to `ai-call`.
+The assistant is stable behavior: English call conduct, SSML-only output, AI disclosure, DTMF rules, identifier pacing, and Nomos clearing-call policy. Do not put live case facts into the reusable assistant prompt. Live case facts belong in the per-call task file passed to `ai-call`.
 
 Preview assistant creation/update without touching Vapi when needed:
 
@@ -192,7 +192,7 @@ Run the exact call as a dry-run first. This validates the task file and confirms
   --provider vapi \
   --assistant-key nomos-clearing-calls \
   --task-file /tmp/nomos-call-task.md \
-  --first-sentence '<short German greeting mentioning Nomos and the case ID>' \
+  --first-sentence '<short English greeting mentioning Nomos and the case ID>' \
   --max-duration 5 \
   --dry-run)
 ```
@@ -204,7 +204,7 @@ Only after explicit user authorization for this one call, run the same command w
   --provider vapi \
   --assistant-key nomos-clearing-calls \
   --task-file /tmp/nomos-call-task.md \
-  --first-sentence '<short German greeting mentioning Nomos and the case ID>' \
+  --first-sentence '<short English greeting mentioning Nomos and the case ID>' \
   --max-duration 5)
 ```
 
@@ -228,7 +228,7 @@ For the standard `telephony.py` helper with ElevenLabs (`voice_provider: 11labs`
 VAPI_ENABLE_SSML_PARSING=true
 VAPI_VOICE_SPEED=0.85
 VAPI_11LABS_MODEL=eleven_flash_v2_5
-VAPI_11LABS_LANGUAGE=de
+VAPI_11LABS_LANGUAGE=en
 ```
 
 Do not rely on the LLM prompt alone for number pacing. The prompt must spell or chunk identifiers, and the voice layer must be configured to honor SSML pauses.
@@ -239,14 +239,14 @@ For Nomos calls, the assistant must use **SSML-only output**:
 - No plain text, Markdown, code fences, XML declarations, comments, or explanations outside `<speak>`.
 - Use only the tested SSML subset in the reusable template: `<speak>` plus `<break time="300ms" />`, `<break time="400ms" />`, or `<break time="500ms" />`.
 - Do not use `<prosody>`, `<say-as>`, `<emphasis>`, `<phoneme>`, `<sub>`, `<spell>`, `<p>`, or `<s>` in this Vapi/ElevenLabs loop.
-- Do not rely on raw digits for MaLo IDs, meter numbers, phone numbers, dates, or reference numbers. Write German spoken words and insert short `<break>` tags between groups.
+- Do not rely on raw digits for MaLo IDs, meter numbers, phone numbers, dates, or reference numbers. Write English spoken words and insert short `<break>` tags between groups.
 
-### German first sentence
+### English first sentence
 
-Use exactly one concise German first sentence path. For Vapi outbound calls, prefer `--first-sentence` as the provider-level `firstMessage`, and ensure the assistant prompt says not to repeat an introduction that has already been spoken. The first sentence should disclose AI status to the first human and identify Nomos/case context. Example:
+Use exactly one concise English first sentence path. For Vapi outbound calls, prefer `--first-sentence` as the provider-level `firstMessage`, and ensure the assistant prompt says not to repeat an introduction that has already been spoken. The first sentence should disclose AI status to the first human and identify Nomos/case context. Example:
 
 ```text
-Guten Tag, ich bin eine künstliche Intelligenz von Nomos GmbH und rufe zu dem Stromanmeldungsfall <case_id> an. Können Sie mir kurz bei der Klärung helfen?
+Hello, I am an artificial intelligence from Nomos GmbH calling about electricity signup case <case_id>. Could you help me clarify it?
 ```
 
 Do not disclose AI status to an IVR/recorded menu. For IVR, choose DTMF only when the recorded menu explicitly asks for keypad input. Read recorded menu options literally and choose the option label that matches the case; do not default to option 1. MaLo-Ident, wrong-MaLo, corrected-MaLo, and market-communication cases should choose Marktkommunikation when that option is offered.
@@ -262,7 +262,7 @@ DTMF/keypad actions are for recorded menus, not for human department words.
 
 ### Per-call task file shape
 
-For a call about a Nomos case, provide the reusable Vapi assistant with concise case context only. Use German back-office vocabulary in case goals and questions, but do not repeat the full stable assistant behavior from `templates/vapi-clearing-call-assistant-prompt.md` in every task file:
+For a call about a Nomos case, provide the reusable Vapi assistant with concise case context only. Use English back-office wording in case goals and questions, preserving necessary energy-market terms where they are the actual process names, but do not repeat the full stable assistant behavior from `templates/vapi-clearing-call-assistant-prompt.md` in every task file:
 
 ```markdown
 # Case context for this call
@@ -304,7 +304,7 @@ templates/vapi-clearing-call-assistant-prompt.md
 
 Append a `# Case context for this call` section with only facts from MCP, user-provided synthetic context, or fixture docs. Unknown fields should be omitted or explicitly marked `unknown`.
 
-The base prompt is German-call focused: it requires SSML-only assistant output, German speech inside SSML, AI disclosure to the first human, literal IVR menu selection, DTMF only for recorded menus, slow one-identifier-at-a-time pacing, `<break>` pauses, digit-by-digit readback, scenario-specific goals, and German back-office note intent.
+The base prompt is English-call focused: it requires SSML-only assistant output, English speech inside SSML, AI disclosure to the first human, literal IVR menu selection, DTMF only for recorded menus, slow one-identifier-at-a-time pacing, `<break>` pauses, digit-by-digit readback, scenario-specific goals, and English back-office note intent.
 
 ## After the Call or Simulation
 
@@ -389,7 +389,7 @@ When reporting a Nomos case action, keep it short and factual:
 - Evidence: <brief source: MCP, call transcript, or user-provided context>
 
 Back-office note:
-<short German note suitable for the Nomos case record>
+<short English note suitable for the Nomos case record>
 ```
 
 ## Guardrails
@@ -420,17 +420,17 @@ Back-office note:
 6. **Updating unsupported fields.** Use `update_case_details` only for fields it actually supports; otherwise record the fact in call result/status/next action.
 7. **Dialing real parties during challenge work.** Use provided synthetic/test targets unless the user explicitly moves to real-call testing.
 8. **Retrying while provider status lags.** `ringing`, `in-progress`, missing transcript/summary, or customer-ended/silence status means poll the same call ID and report inconclusive if needed; it is not permission to place another call.
-9. **Losing German call focus.** The live phone agent should speak German, use German market vocabulary, disclose AI status to the first human, and produce a German back-office note.
-10. **Unsupported SSML.** Generic SSML tags may be stripped by Vapi formatting or ignored by a voice model. In this loop, use only `<speak>` and tested `<break>` pauses, with numbers written as spoken German words.
+9. **Losing English call focus.** The live phone agent should speak English, use clear market vocabulary, disclose AI status to the first human, and produce an English back-office note.
+10. **Unsupported SSML.** Generic SSML tags may be stripped by Vapi formatting or ignored by a voice model. In this loop, use only `<speak>` and tested `<break>` pauses, with numbers written as spoken English words.
 
 ## Verification Checklist
 
 - [ ] Case data came from MCP, explicit user input, or challenge fixture docs.
 - [ ] Scenario was classified before calling.
-- [ ] German call behavior was preserved: first-human AI disclosure, German language, German market terms, DTMF only for IVR, digit readback.
+- [ ] English call behavior was preserved: first-human AI disclosure, English language, necessary market terms, DTMF only for IVR, digit readback.
 - [ ] Vapi voice settings were checked; ElevenLabs calls use SSML parsing, `eleven_flash_v2_5`, and a slower voice speed when available.
 - [ ] Assistant output was SSML-only: exactly one `<speak>...</speak>` document per spoken turn.
-- [ ] Identifier output used German spoken words with `<break time="300ms" />`, `<break time="400ms" />`, or `<break time="500ms" />` pauses.
+- [ ] Identifier output used English spoken words with `<break time="300ms" />`, `<break time="400ms" />`, or `<break time="500ms" />` pauses.
 - [ ] Reusable Vapi assistant `nomos-clearing-calls` was ensured from `templates/vapi-clearing-call-assistant-prompt.md`.
 - [ ] Per-case facts were passed via `ai-call --assistant-key nomos-clearing-calls --task-file`, not baked into the reusable assistant.
 - [ ] The exact `ai-call ... --dry-run` command was inspected before any real outbound call.
