@@ -1,7 +1,7 @@
 ---
 name: nomos-clearing-calls
 description: Use when the user mentions Nomos case numbers, MaLo IDs, meter numbers, German grid-operator/supplier signup issues, asks what to do with a Nomos case, or requests a Nomos clearing call. Defines case context, SSML-only German call conduct, MCP update rules, and the standard Vapi call/simulation procedure.
-version: 1.3.1
+version: 1.4.1
 author: Bruno + Hermes Agent
 license: MIT
 metadata:
@@ -117,21 +117,18 @@ One explicit user authorization covers exactly **one** outbound call attempt to 
 - If the call fails, is missed, is silent, reaches voicemail, is ended by the customer, or produces no usable transcript, stop and ask the user for fresh explicit authorization before retrying.
 - Before any retry, state the previous call ID and final status so duplicate-call risk is visible.
 
-### Standard helper command
+### Standard reusable Vapi assistant
 
 Use the installed helper script, normally:
 
 ```bash
 SCRIPT="/home/bruno/.hermes/profiles/vapihermes/skills/productivity/telephony/scripts/telephony.py"
-# Run from a synced Hermes Agent uv environment, or activate that environment first.
-VAPI_ENABLE_SSML_PARSING="${VAPI_ENABLE_SSML_PARSING:-true}" \
-VAPI_VOICE_SPEED="${VAPI_VOICE_SPEED:-0.85}" \
-VAPI_11LABS_MODEL="${VAPI_11LABS_MODEL:-eleven_flash_v2_5}" \
-VAPI_11LABS_LANGUAGE="${VAPI_11LABS_LANGUAGE:-de}" \
-uv run python "$SCRIPT" ai-call '<E164 phone number>' '<task prompt>' \
-  --provider vapi \
-  --first-sentence '<short German greeting mentioning Nomos and the case ID>' \
-  --max-duration 5
+HERMES_AGENT_DIR="${HERMES_AGENT_DIR:-/home/bruno/projects/hermes-agent}"
+NOMOS_SKILL_DIR="${NOMOS_SKILL_DIR:-/home/bruno/projects/nomos-agent/skills/nomos-clearing-calls}"
+export VAPI_ENABLE_SSML_PARSING="${VAPI_ENABLE_SSML_PARSING:-true}"
+export VAPI_VOICE_SPEED="${VAPI_VOICE_SPEED:-0.85}"
+export VAPI_11LABS_MODEL="${VAPI_11LABS_MODEL:-eleven_flash_v2_5}"
+export VAPI_11LABS_LANGUAGE="${VAPI_11LABS_LANGUAGE:-de}"
 ```
 
 If the path changes, locate it with:
@@ -140,10 +137,81 @@ If the path changes, locate it with:
 SCRIPT="$(find ~/.hermes/profiles/vapihermes/skills ~/.hermes/skills -path '*/telephony/scripts/telephony.py' -print -quit 2>/dev/null)"
 ```
 
-The call command returns a Vapi `call_id`. Poll that exact call:
+Create or update the durable Nomos Vapi assistant before repeated calls, and rerun this command whenever `templates/vapi-clearing-call-assistant-prompt.md` changes:
 
 ```bash
-uv run python "$SCRIPT" ai-status '<call_id>' --provider vapi
+(cd "$HERMES_AGENT_DIR" && uv run python "$SCRIPT" vapi-assistant ensure \
+  --key nomos-clearing-calls \
+  --name "Nomos clearing caller" \
+  --prompt-file "$NOMOS_SKILL_DIR/templates/vapi-clearing-call-assistant-prompt.md" \
+  --task-variable case_context \
+  --max-duration 5)
+```
+
+The assistant is stable behavior: German call conduct, SSML-only output, AI disclosure, DTMF rules, identifier pacing, and Nomos clearing-call policy. Do not put live case facts into the reusable assistant prompt. Live case facts belong in the per-call task file passed to `ai-call`.
+
+Preview assistant creation/update without touching Vapi when needed:
+
+```bash
+(cd "$HERMES_AGENT_DIR" && uv run python "$SCRIPT" vapi-assistant ensure \
+  --key nomos-clearing-calls \
+  --name "Nomos clearing caller" \
+  --prompt-file "$NOMOS_SKILL_DIR/templates/vapi-clearing-call-assistant-prompt.md" \
+  --task-variable case_context \
+  --max-duration 5 \
+  --dry-run)
+```
+
+### Standard call command
+
+Write the per-case context to a file. Use facts from MCP, user-provided synthetic context, or fixture docs only:
+
+```bash
+cat > /tmp/nomos-call-task.md <<'EOF'
+# Case context for this call
+
+Case ID: <case_id>
+Supplier: <supplier>
+Grid/operator/target: <grid_operator or call target>
+Current MaLo ID: <malo_id if any>
+Meter number / Zählernummer: <meter_number if any>
+Delivery address / Lieferstelle: <address if any>
+Registration date / Anmeldung: <registration_date if any>
+Requested supply start / Lieferbeginn: <supply_start if any>
+Status/symptom: <status_text/symptom>
+Scenario type: <MaLo-Ident | Netzanmeldung | Kündigung | Lieferantenwechsel | Marktkommunikation | other>
+Goal: <what must be confirmed or obtained>
+Information to obtain: <specific unknowns>
+EOF
+```
+
+Run the exact call as a dry-run first. This validates the task file and confirms the provider request will reuse the saved `nomos-clearing-calls` assistant:
+
+```bash
+(cd "$HERMES_AGENT_DIR" && uv run python "$SCRIPT" ai-call '<E164 phone number>' \
+  --provider vapi \
+  --assistant-key nomos-clearing-calls \
+  --task-file /tmp/nomos-call-task.md \
+  --first-sentence '<short German greeting mentioning Nomos and the case ID>' \
+  --max-duration 5 \
+  --dry-run)
+```
+
+Only after explicit user authorization for this one call, run the same command without `--dry-run`:
+
+```bash
+(cd "$HERMES_AGENT_DIR" && uv run python "$SCRIPT" ai-call '<E164 phone number>' \
+  --provider vapi \
+  --assistant-key nomos-clearing-calls \
+  --task-file /tmp/nomos-call-task.md \
+  --first-sentence '<short German greeting mentioning Nomos and the case ID>' \
+  --max-duration 5)
+```
+
+The call command returns a Vapi `call_id`. Record it immediately and poll that exact call:
+
+```bash
+(cd "$HERMES_AGENT_DIR" && uv run python "$SCRIPT" ai-status '<call_id>' --provider vapi)
 ```
 
 ### Vapi voice settings for identifier pacing
@@ -151,7 +219,7 @@ uv run python "$SCRIPT" ai-status '<call_id>' --provider vapi
 Before a call that will read MaLo IDs, meter numbers, phone numbers, or reference numbers, verify the Vapi voice settings:
 
 ```bash
-uv run python "$SCRIPT" diagnose
+(cd "$HERMES_AGENT_DIR" && uv run python "$SCRIPT" diagnose)
 ```
 
 For the standard `telephony.py` helper with ElevenLabs (`voice_provider: 11labs`), prefer these settings in `~/.hermes/.env` or the Hermes config:
@@ -183,13 +251,21 @@ Guten Tag, ich bin eine künstliche Intelligenz von Nomos GmbH und rufe zu dem S
 
 Do not disclose AI status to an IVR/recorded menu. For IVR, choose DTMF only when the recorded menu explicitly asks for keypad input. Read recorded menu options literally and choose the option label that matches the case; do not default to option 1. MaLo-Ident, wrong-MaLo, corrected-MaLo, and market-communication cases should choose Marktkommunikation when that option is offered.
 
-### Task prompt shape
+### IVR and DTMF handling
 
-For a call about a Nomos case, provide the voice/call agent with concise case context only. Use German instructions for the spoken behavior and German back-office vocabulary:
+DTMF/keypad actions are for recorded menus, not for human department words.
+
+- For recorded IVR menus, choose the menu option that matches the case. Do not default to option 1; if Marktkommunikation is option 2 for a MaLo-Ident case, choose option 2.
+- In chat/mock evals where no DTMF tool is attached, answer an explicit recorded menu with only the keypad choice, such as `[DTMF:1]`, `<DTMF:1>`, or `1`. Do not wrap keypad choices in SSML.
+- Do not press a key just because a human says department words such as Lieferantenwechsel, Netzanmeldung, MaLo-Ident, Kündigung, Marktkommunikation, or Abteilung.
+- If the assistant uses a DTMF/keypad or endCall tool, it should call the tool silently. If it speaks afterward, it must output a fresh `<speak>...</speak>` document.
+
+### Per-call task file shape
+
+For a call about a Nomos case, provide the reusable Vapi assistant with concise case context only. Use German back-office vocabulary in case goals and questions, but do not repeat the full stable assistant behavior from `templates/vapi-clearing-call-assistant-prompt.md` in every task file:
 
 ```markdown
-You are calling <target/grid operator> regarding a Nomos GmbH electricity supply registration case.
-Speak German during the call.
+# Case context for this call
 
 Case ID: <case_id>
 Supplier: <supplier>
@@ -200,34 +276,20 @@ Delivery address / Lieferstelle: <address if any>
 Registration date / Anmeldung: <registration_date if any>
 Requested supply start / Lieferbeginn: <supply_start if any>
 Status/symptom: <status_text/symptom>
+Scenario type: <MaLo-Ident | Netzanmeldung | Kündigung | Lieferantenwechsel | Marktkommunikation | other>
 Goal: <what must be confirmed or obtained>
 Information to obtain: <specific unknowns>
 
-Call instructions:
-- Speak German only, naturally and briefly.
-- Output SSML only: every spoken response must be exactly one valid `<speak>...</speak>` document.
-- Do not output plain text, Markdown, code fences, XML declarations, comments, or explanations outside `<speak>`.
-- If you use DTMF/keypad or endCall tools, call the tool silently. If you speak afterward, output a fresh `<speak>...</speak>` document.
-- For recorded IVR menus, choose the menu option that matches the case. Do not default to option 1; if Marktkommunikation is option 2 for a MaLo-Ident case, choose option 2.
-- In chat/mock evals where no DTMF tool is attached, answer an explicit recorded menu with only the keypad choice, such as `[DTMF:1]`, `<DTMF:1>`, or `1`. Do not wrap keypad choices in SSML.
-- Do not press a key just because a human says department words such as Lieferantenwechsel, Netzanmeldung, MaLo-Ident, Kündigung, Marktkommunikation, or Abteilung.
-- Speak slowly and clearly. Clarity is more important than speed.
-- First words to a human: disclose that you are an AI from Nomos GmbH.
-- Mention the case ID and the specific process step: MaLo-Ident, Netzanmeldung, Kündigung, Lieferantenwechsel, or Marktkommunikation.
-- Offer relevant identifiers proactively, but not all in one breath. Use one important identifier per sentence or turn.
-- Preferred order: case ID, MaLo/MaLo-ID, Zählernummer, Lieferstelle, dates.
-- Use only `<speak>` and short `<break>` tags in this test loop.
-- Do not use `<prosody>`, `<say-as>`, `<emphasis>`, `<phoneme>`, `<sub>`, `<spell>`, `<p>`, or `<s>`.
-- Read MaLo IDs digit-by-digit or in short groups with German digit words and pauses, for example: `<speak>Die MaLo-ID lautet: acht, vier, fünf <break time="400ms" /> sieben, sieben, eins <break time="400ms" /> zwei, drei, null <break time="400ms" /> eins, neun. <break time="300ms" /> Ist das so korrekt?</speak>`
-- Read meter numbers in chunks, for example: `<speak>Die Zählernummer lautet: eins E B E <break time="400ms" /> neun null null null <break time="400ms" /> eins eins <break time="400ms" /> null acht eins eins. <break time="300ms" /> Haben Sie die Nummer so gefunden?</speak>`
-- After reading an important number, pause and ask for confirmation before continuing.
-- Ask the exact case-specific questions needed to resolve the case.
-- If a long identifier is provided, read it back digit-by-digit or in short chunks.
-- If a correction or answer is available, obtain confirmation and any Vorgangsnummer/reference.
-- If correction is not possible, obtain the exact reason, who must act next, expected timing, and any reference.
-- If the person cannot help, ask which department/contact should handle it.
-- Do not invent facts, IDs, expected answers, or outcomes.
-- End politely after obtaining the needed information.
+Case-specific questions:
+- <question 1>
+- <question 2>
+- <question 3 if needed>
+
+Important identifier pacing:
+- <identifier that must be read back slowly, if any>
+
+Success criteria:
+- <what answer/reference/follow-up is enough to resolve or advance this case>
 ```
 
 Do not include hidden expected answers or invented outcomes in call instructions. For simulations/evals, expected answers belong in evaluator/oracle files, not the target assistant prompt.
@@ -369,8 +431,10 @@ Back-office note:
 - [ ] Vapi voice settings were checked; ElevenLabs calls use SSML parsing, `eleven_flash_v2_5`, and a slower voice speed when available.
 - [ ] Assistant output was SSML-only: exactly one `<speak>...</speak>` document per spoken turn.
 - [ ] Identifier output used German spoken words with `<break time="300ms" />`, `<break time="400ms" />`, or `<break time="500ms" />` pauses.
-- [ ] Vapi prompt used `templates/vapi-clearing-call-assistant-prompt.md` or the documented `telephony.py ai-call --provider vapi` helper prompt shape.
-- [ ] Expected answers/oracles were not included in the Vapi assistant/call prompt.
+- [ ] Reusable Vapi assistant `nomos-clearing-calls` was ensured from `templates/vapi-clearing-call-assistant-prompt.md`.
+- [ ] Per-case facts were passed via `ai-call --assistant-key nomos-clearing-calls --task-file`, not baked into the reusable assistant.
+- [ ] The exact `ai-call ... --dry-run` command was inspected before any real outbound call.
+- [ ] Expected answers/oracles were not included in the Vapi assistant or per-call task file.
 - [ ] Call/simulation was actually run, or the blocker was reported honestly.
 - [ ] For real calls, exactly one outbound call ID was created per explicit authorization.
 - [ ] Non-terminal provider statuses were handled by polling the same call ID, not by placing another call.
