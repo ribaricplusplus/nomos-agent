@@ -1,27 +1,30 @@
 {% extends "base.html" %}
+{% import "_macros.html" as ui %}
 {% block title %}{{ case.case_id }} · Fake Nomos{% endblock %}
+{% block main_class %}narrow{% endblock %}
 {% block content %}
-  <div class="actions">
-    <a class="btn" href="/">← All cases</a>
-    <span class="pill">{{ case.case_status }}</span>
+  <div class="crumb">
+    <a class="back" href="/">← All cases</a>
+    {{ ui.status_pill(case.case_status) }}
   </div>
-  <h2>{{ case.case_id }} · {{ case.case_title }}</h2>
+  <div class="page-title"><span class="id">{{ case.case_id }}</span><span class="name">{{ case.case_title }}</span></div>
+  <div class="page-sub">{{ case.grid_operator }} · MaLo {{ case.malo_id }}</div>
 
   <section class="grid">
     <div class="card">
       <h3>Complete case data</h3>
-      <dl>
+      <dl class="kv">
         <div class="field"><dt>Supplier</dt><dd>{{ case.supplier }}</dd></div>
         <div class="field"><dt>Grid operator</dt><dd>{{ case.grid_operator }}</dd></div>
-        <div class="field"><dt>MaLo ID</dt><dd>{{ case.malo_id }}</dd></div>
-        <div class="field"><dt>Address</dt><dd>{{ case.address }}</dd></div>
-        <div class="field"><dt>Meter number</dt><dd>{{ case.meter_number }}</dd></div>
-        <div class="field"><dt>Registration date</dt><dd>{{ case.registration_date or "—" }}</dd></div>
-        <div class="field"><dt>Supply start</dt><dd>{{ case.supply_start or "—" }}</dd></div>
-        <div class="field"><dt>Status text</dt><dd>{{ case.status_text }}</dd></div>
-        <div class="field"><dt>Symptom</dt><dd>{{ case.symptom }}</dd></div>
-        <div class="field"><dt>Goal</dt><dd>{{ case.goal }}</dd></div>
-        <div class="field"><dt>Next action</dt><dd>{{ case.next_action or "—" }}</dd></div>
+        <div class="field"><dt>MaLo ID</dt><dd class="mono">{{ case.malo_id }}</dd></div>
+        <div class="field"><dt>Meter number</dt><dd class="mono">{{ case.meter_number }}</dd></div>
+        <div class="field full"><dt>Address</dt><dd>{{ case.address }}</dd></div>
+        <div class="field"><dt>Registration date</dt><dd class="mono">{{ case.registration_date or "—" }}</dd></div>
+        <div class="field"><dt>Supply start</dt><dd class="mono">{{ case.supply_start or "—" }}</dd></div>
+        <div class="field full"><dt>Status text</dt><dd class="long">{{ case.status_text }}</dd></div>
+        <div class="field full"><dt>Symptom</dt><dd class="long">{{ case.symptom }}</dd></div>
+        <div class="field full"><dt>Goal</dt><dd class="long">{{ case.goal }}</dd></div>
+        <div class="field full"><dt>Next action</dt><dd class="long">{{ case.next_action or "—" }}</dd></div>
       </dl>
     </div>
 
@@ -35,7 +38,7 @@
         </form>
       </div>
 
-      <div class="card" style="margin-top: 1rem">
+      <div class="card">
         <h3>Record call result</h3>
         <form method="post" action="/cases/{{ case.case_id }}/calls">
           <label>Duration in seconds<input type="number" name="duration_seconds" min="0" required /></label>
@@ -48,26 +51,38 @@
     </div>
   </section>
 
-  <h2>Call logs</h2>
+  <div class="section-head"><span class="tick"></span><h2>Call logs</h2><span class="count-badge">{{ call_logs | length }}</span></div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Time</th><th>Duration</th><th>Outcome</th><th>Confidence</th><th>Summary</th></tr></thead>
       <tbody>
         {% for call in call_logs %}
-          <tr><td>{{ call.call_datetime }}</td><td>{{ call.duration_seconds }}s</td><td>{{ call.outcome }}</td><td>{{ "%.2f" | format(call.confidence) }}</td><td>{{ call.summary }}</td></tr>
-        {% else %}<tr><td colspan="5" class="muted">No calls recorded for this case.</td></tr>{% endfor %}
+          <tr>
+            <td class="mono dim">{{ ui.when(call.call_datetime) }}</td>
+            <td class="mono">{{ ui.duration(call.duration_seconds) }}</td>
+            <td><span class="tag">{{ call.outcome }}</span></td>
+            <td>{{ ui.confidence(call.confidence) }}</td>
+            <td class="wrap-cell">{{ call.summary }}</td>
+          </tr>
+        {% else %}<tr><td colspan="5" class="empty">No calls recorded for this case.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
 
-  <h2>Audit logs</h2>
+  <div class="section-head"><span class="tick"></span><h2>Audit logs</h2><span class="count-badge">{{ audit_logs | length }}</span></div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Time</th><th>Field</th><th>Old value</th><th>New value</th><th>Changed by</th></tr></thead>
       <tbody>
         {% for audit in audit_logs %}
-          <tr><td>{{ audit.changed_at }}</td><td>{{ audit.changed_field }}</td><td>{{ audit.old_value or "—" }}</td><td>{{ audit.new_value or "—" }}</td><td>{{ audit.changed_by }}</td></tr>
-        {% else %}<tr><td colspan="5" class="muted">No changes recorded for this case.</td></tr>{% endfor %}
+          <tr>
+            <td class="mono dim">{{ ui.when(audit.changed_at) }}</td>
+            <td><span class="tag">{{ audit.changed_field }}</span></td>
+            <td class="dim">{{ audit.old_value or "—" }}</td>
+            <td class="strong">{{ audit.new_value or "—" }}</td>
+            <td class="mono dim">{{ audit.changed_by }}</td>
+          </tr>
+        {% else %}<tr><td colspan="5" class="empty">No changes recorded for this case.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>

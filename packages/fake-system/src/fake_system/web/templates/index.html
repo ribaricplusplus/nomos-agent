@@ -1,53 +1,101 @@
 {% extends "base.html" %}
+{% import "_macros.html" as ui %}
 {% block title %}Cases · Fake Nomos{% endblock %}
 {% block content %}
   <section class="metrics">
-    <div class="metric"><span class="muted">Total cases</span><strong>{{ cases | length }}</strong></div>
-    <div class="metric"><span class="muted">Open cases</span><strong>{{ open_cases }}</strong></div>
-    <div class="metric"><span class="muted">Calls made</span><strong>{{ call_logs | length }}</strong></div>
-    <div class="metric"><span class="muted">Audit updates</span><strong>{{ audit_logs | length }}</strong></div>
+    <div class="metric is-accent"><span class="label">Total cases</span><span class="value">{{ cases | length }}</span><span class="sub">client records tracked</span></div>
+    <div class="metric is-ok"><span class="label">Open cases</span><span class="value">{{ open_cases }}</span><span class="sub">awaiting resolution</span></div>
+    <div class="metric"><span class="label">Calls made</span><span class="value">{{ call_logs | length }}</span><span class="sub">logged by the agent</span></div>
+    <div class="metric is-warn"><span class="label">Audit updates</span><span class="value">{{ audit_logs | length }}</span><span class="sub">field changes recorded</span></div>
   </section>
 
-  <h2>Cases / client records</h2>
+  <div class="section-head">
+    <span class="tick"></span><h2>Cases / client records</h2><span class="count-badge">{{ cases | length }}</span>
+  </div>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>ID</th><th>Title</th><th>Supplier</th><th>Grid operator</th><th>MaLo</th><th>Meter</th><th>Address</th><th>Registration</th><th>Supply start</th><th>Status</th><th>Next action</th><th></th></tr></thead>
+      <thead>
+        <tr>
+          <th>Case</th><th>Parties</th><th>Identifiers</th><th>Address</th>
+          <th>Timeline</th><th>Status</th><th>Next action</th><th></th>
+        </tr>
+      </thead>
       <tbody>
         {% for case in cases %}
           <tr>
-            <td>{{ case.case_id }}</td><td>{{ case.case_title }}</td><td>{{ case.supplier }}</td>
-            <td>{{ case.grid_operator }}</td><td>{{ case.malo_id }}</td><td>{{ case.meter_number }}</td>
-            <td>{{ case.address }}</td><td>{{ case.registration_date or "—" }}</td><td>{{ case.supply_start or "—" }}</td>
-            <td><span class="pill">{{ case.case_status }}</span></td><td>{{ case.next_action or "—" }}</td>
-            <td><a class="btn" href="/cases/{{ case.case_id }}">View</a></td>
+            <td>
+              <div class="cell-stack">
+                <a class="case-id" href="/cases/{{ case.case_id }}">{{ case.case_id }}</a>
+                <span class="case-title">{{ case.case_title }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell-stack">
+                <span class="strong">{{ case.supplier }}</span>
+                <span class="dim">{{ case.grid_operator }}</span>
+              </div>
+            </td>
+            <td>
+              <div class="cell-stack">
+                <span class="cell-micro">MaLo</span><span class="mono">{{ case.malo_id }}</span>
+                <span class="cell-micro">Meter</span><span class="mono dim">{{ case.meter_number }}</span>
+              </div>
+            </td>
+            <td class="wrap-cell">{{ case.address }}</td>
+            <td>
+              <div class="timeline">
+                <span>{{ case.registration_date or "—" }}</span><span class="arr">→</span><span>{{ case.supply_start or "—" }}</span>
+              </div>
+            </td>
+            <td>{{ ui.status_pill(case.case_status) }}</td>
+            <td class="wrap-cell">{{ case.next_action or "—" }}</td>
+            <td><a class="btn" href="/cases/{{ case.case_id }}">View <span class="arr">→</span></a></td>
           </tr>
         {% else %}
-          <tr><td colspan="12" class="muted">No cases yet. Run <code>uv run fake-system-seed</code>.</td></tr>
+          <tr><td colspan="8" class="empty">No cases yet. Run <code>uv run fake-system-seed</code>.</td></tr>
         {% endfor %}
       </tbody>
     </table>
   </div>
 
-  <h2>All call logs</h2>
+  <div class="section-head">
+    <span class="tick"></span><h2>All call logs</h2><span class="count-badge">{{ call_logs | length }}</span>
+  </div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Time</th><th>Case</th><th>Duration</th><th>Outcome</th><th>Confidence</th><th>Summary</th></tr></thead>
       <tbody>
         {% for call in call_logs %}
-          <tr><td>{{ call.call_datetime }}</td><td>{{ call.case_id }}</td><td>{{ call.duration_seconds }}s</td><td>{{ call.outcome }}</td><td>{{ "%.2f" | format(call.confidence) }}</td><td>{{ call.summary }}</td></tr>
-        {% else %}<tr><td colspan="6" class="muted">No calls recorded.</td></tr>{% endfor %}
+          <tr>
+            <td class="mono dim">{{ ui.when(call.call_datetime) }}</td>
+            <td><a class="case-id" href="/cases/{{ call.case_id }}">{{ call.case_id }}</a></td>
+            <td class="mono">{{ ui.duration(call.duration_seconds) }}</td>
+            <td><span class="tag">{{ call.outcome }}</span></td>
+            <td>{{ ui.confidence(call.confidence) }}</td>
+            <td class="wrap-cell">{{ call.summary }}</td>
+          </tr>
+        {% else %}<tr><td colspan="6" class="empty">No calls recorded.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>
 
-  <h2>All audit logs</h2>
+  <div class="section-head">
+    <span class="tick"></span><h2>All audit logs</h2><span class="count-badge">{{ audit_logs | length }}</span>
+  </div>
   <div class="table-wrap">
     <table>
       <thead><tr><th>Time</th><th>Case</th><th>Field</th><th>Old value</th><th>New value</th><th>Changed by</th></tr></thead>
       <tbody>
         {% for audit in audit_logs %}
-          <tr><td>{{ audit.changed_at }}</td><td>{{ audit.case_id }}</td><td>{{ audit.changed_field }}</td><td>{{ audit.old_value or "—" }}</td><td>{{ audit.new_value or "—" }}</td><td>{{ audit.changed_by }}</td></tr>
-        {% else %}<tr><td colspan="6" class="muted">No changes recorded.</td></tr>{% endfor %}
+          <tr>
+            <td class="mono dim">{{ ui.when(audit.changed_at) }}</td>
+            <td><a class="case-id" href="/cases/{{ audit.case_id }}">{{ audit.case_id }}</a></td>
+            <td><span class="tag">{{ audit.changed_field }}</span></td>
+            <td class="dim">{{ audit.old_value or "—" }}</td>
+            <td class="strong">{{ audit.new_value or "—" }}</td>
+            <td class="mono dim">{{ audit.changed_by }}</td>
+          </tr>
+        {% else %}<tr><td colspan="6" class="empty">No changes recorded.</td></tr>{% endfor %}
       </tbody>
     </table>
   </div>

@@ -1,0 +1,29 @@
+{# Reusable presentation helpers for the dashboard templates. #}
+
+{# Semantic, colour-coded status pill. Matches keywords so free-form
+   statuses (English or German) still land on a sensible colour. #}
+{% macro status_pill(status) -%}
+  {%- set s = (status or "") | lower -%}
+  {%- set cls = "bad" if ("reject" in s or "abgelehnt" in s or "block" in s or "fail" in s or "error" in s or "escalat" in s)
+      else ("neutral" if ("close" in s or "resolved" in s or "done" in s or "abgeschlossen" in s or "geschlossen" in s or "archiv" in s)
+      else ("warn" if ("pending" in s or "wait" in s or "reminder" in s or "nachfass" in s or "hold" in s or "progress" in s or "bearbeit" in s)
+      else ("ok" if ("open" in s or "aktiv" in s or "active" in s or "offen" in s) else "neutral"))) -%}
+  <span class="pill {{ cls }}">{{ status }}</span>
+{%- endmacro %}
+
+{# Confidence value rendered as a colour-coded mini meter plus the number. #}
+{% macro confidence(value) -%}
+  {%- set v = value | float -%}
+  {%- set cls = "hi" if v >= 0.75 else ("mid" if v >= 0.45 else "lo") -%}
+  <div class="conf {{ cls }}"><span class="track"><span class="fill" style="width: {{ (v * 100) | round(0, "floor") | int }}%"></span></span>{{ "%.2f" | format(v) }}</div>
+{%- endmacro %}
+
+{# Whole seconds as m:ss. #}
+{% macro duration(seconds) -%}
+  {%- set total = seconds | int -%}{{ total // 60 }}:{{ "%02d" | format(total % 60) }}
+{%- endmacro %}
+
+{# Render a date/datetime with a format, falling back to an em dash. #}
+{% macro when(value, fmt="%Y-%m-%d %H:%M") -%}
+  {%- if value -%}{{ value.strftime(fmt) }}{%- else -%}—{%- endif -%}
+{%- endmacro %}

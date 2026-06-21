@@ -4,41 +4,292 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% block title %}Fake Nomos{% endblock %}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
-      :root { color-scheme: dark; }
+      :root {
+        color-scheme: dark;
+        --bg: #090b11;
+        --bg-glow: #121a2e;
+        --surface: #11141d;
+        --surface-2: #161b27;
+        --surface-3: #1b2230;
+        --border: #232b3b;
+        --border-soft: #1b2230;
+        --text: #e9edf5;
+        --text-muted: #97a1b6;
+        --text-faint: #5e6880;
+        --accent: #5b8cff;
+        --accent-soft: rgba(91, 140, 255, 0.14);
+        --accent-line: linear-gradient(90deg, #5b8cff, #43d1c4);
+        --ok: #3ddc9a;
+        --ok-bg: rgba(61, 220, 154, 0.12);
+        --warn: #f3b14e;
+        --warn-bg: rgba(243, 177, 78, 0.13);
+        --bad: #f06a6a;
+        --bad-bg: rgba(240, 106, 106, 0.13);
+        --neutral: #98a2b8;
+        --neutral-bg: rgba(152, 162, 184, 0.13);
+        --radius: 14px;
+        --shadow: 0 1px 0 rgba(255, 255, 255, 0.03) inset,
+          0 18px 40px -24px rgba(0, 0, 0, 0.8);
+        --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+      }
       * { box-sizing: border-box; }
-      body { margin: 0; font: 15px/1.5 system-ui, sans-serif; background: #0f1115; color: #e6e6e6; }
-      header { padding: 1.25rem 2rem; border-bottom: 1px solid #293040; background: #151923; }
-      header h1 { margin: 0; font-size: 1.15rem; }
-      header a { color: inherit; text-decoration: none; }
-      main { max-width: 1400px; margin: auto; padding: 2rem; }
-      h2 { margin-top: 2rem; }
-      .metrics { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 1rem; }
-      .metric { padding: 1rem; border: 1px solid #293040; border-radius: 10px; background: #151923; }
-      .metric strong { display: block; font-size: 1.6rem; }
-      .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-      .card { padding: 1rem; border: 1px solid #293040; border-radius: 10px; background: #151923; }
-      .card h3 { margin-top: 0; }
-      .field { margin-bottom: .85rem; }
-      .field dt { color: #8b94a7; font-size: .75rem; text-transform: uppercase; }
-      .field dd { margin: .15rem 0 0; white-space: normal; }
-      .table-wrap { overflow-x: auto; border: 1px solid #293040; border-radius: 10px; }
-      table { width: 100%; border-collapse: collapse; white-space: nowrap; }
-      th, td { padding: .65rem .8rem; text-align: left; border-bottom: 1px solid #252b39; }
-      th { color: #97a1b4; font-size: .75rem; text-transform: uppercase; }
-      .muted { color: #8b94a7; }
-      .pill { padding: .15rem .55rem; border-radius: 999px; background: #183723; color: #7ee2a8; }
-      .btn { display: inline-block; padding: .4rem .75rem; border: 1px solid #35405a; border-radius: 6px; color: #dce4f2; background: #1c2230; text-decoration: none; }
-      .btn.primary { background: #315efb; border-color: #315efb; color: white; }
-      form { display: grid; gap: 1rem; max-width: 650px; }
-      label { display: grid; gap: .35rem; color: #aab3c5; }
-      input, textarea { padding: .65rem; border: 1px solid #35405a; border-radius: 6px; background: #11151e; color: white; font: inherit; }
-      .actions { display: flex; gap: .75rem; }
-      @media (max-width: 700px) { .metrics, .grid { grid-template-columns: 1fr; } main { padding: 1rem; } }
+      html { scroll-behavior: smooth; }
+      body {
+        margin: 0;
+        font-family: "IBM Plex Sans", system-ui, sans-serif;
+        font-size: 15px;
+        line-height: 1.55;
+        color: var(--text);
+        background:
+          radial-gradient(900px 500px at 78% -8%, var(--bg-glow), transparent 60%),
+          radial-gradient(700px 460px at 0% 0%, #161226, transparent 55%),
+          var(--bg);
+        background-attachment: fixed;
+        -webkit-font-smoothing: antialiased;
+      }
+      a { color: inherit; }
+
+      /* ---------- Header ---------- */
+      header {
+        position: sticky;
+        top: 0;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 0.95rem 2rem;
+        border-bottom: 1px solid var(--border);
+        background: rgba(11, 14, 21, 0.82);
+        backdrop-filter: blur(12px);
+      }
+      .brand { display: flex; align-items: center; gap: 0.8rem; text-decoration: none; }
+      .brand .mark {
+        width: 38px; height: 38px; border-radius: 11px;
+        background: linear-gradient(150deg, #5b8cff, #43d1c4);
+        display: grid; place-items: center;
+        box-shadow: 0 8px 22px -8px rgba(91, 140, 255, 0.7); flex: none;
+      }
+      .brand .mark svg { width: 21px; height: 21px; }
+      .brand .name { display: flex; flex-direction: column; line-height: 1.15; }
+      .brand .name b { font-size: 1rem; font-weight: 700; letter-spacing: 0.14em; }
+      .brand .name span {
+        font-size: 0.7rem; color: var(--text-muted);
+        text-transform: uppercase; letter-spacing: 0.22em;
+      }
+      .env-chip {
+        display: inline-flex; align-items: center; gap: 0.5rem;
+        padding: 0.4rem 0.8rem; border-radius: 999px;
+        border: 1px solid var(--border); background: var(--surface-2);
+        font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted);
+        letter-spacing: 0.04em;
+      }
+      .env-chip .dot {
+        width: 8px; height: 8px; border-radius: 50%;
+        background: var(--ok); box-shadow: 0 0 0 4px var(--ok-bg);
+      }
+
+      main { max-width: 1440px; margin: auto; padding: 2.25rem 2rem 4rem; }
+      main.narrow { max-width: 1200px; }
+
+      /* ---------- Section heads ---------- */
+      .section-head {
+        display: flex; align-items: baseline; gap: 0.75rem;
+        margin: 2.5rem 0 1rem;
+      }
+      .section-head .tick {
+        width: 4px; height: 1.05rem; border-radius: 4px;
+        background: var(--accent-line); align-self: center;
+      }
+      .section-head h2 { margin: 0; font-size: 1.05rem; font-weight: 600; letter-spacing: 0.01em; }
+      .count-badge {
+        font-family: var(--mono); font-size: 0.72rem; color: var(--text-muted);
+        padding: 0.15rem 0.55rem; border-radius: 999px;
+        background: var(--surface-2); border: 1px solid var(--border-soft);
+      }
+
+      /* ---------- Metrics ---------- */
+      .metrics {
+        display: grid; grid-template-columns: repeat(4, minmax(150px, 1fr)); gap: 1rem;
+      }
+      .metric {
+        position: relative; overflow: hidden;
+        padding: 1.15rem 1.25rem; border-radius: var(--radius);
+        border: 1px solid var(--border);
+        background: linear-gradient(180deg, var(--surface-2), var(--surface));
+        box-shadow: var(--shadow);
+      }
+      .metric::before {
+        content: ""; position: absolute; inset: 0 0 auto 0; height: 3px;
+        background: var(--bar, var(--accent-line)); opacity: 0.9;
+      }
+      .metric .label {
+        display: block; font-size: 0.72rem; text-transform: uppercase;
+        letter-spacing: 0.13em; color: var(--text-muted);
+      }
+      .metric .value {
+        display: block; margin-top: 0.5rem;
+        font-family: var(--mono); font-weight: 600; font-size: 2.1rem;
+        line-height: 1; letter-spacing: -0.01em;
+      }
+      .metric .sub { display: block; margin-top: 0.45rem; font-size: 0.78rem; color: var(--text-faint); }
+      .metric.is-ok { --bar: linear-gradient(90deg, #3ddc9a, #43d1c4); }
+      .metric.is-accent { --bar: linear-gradient(90deg, #5b8cff, #7aa2ff); }
+      .metric.is-warn { --bar: linear-gradient(90deg, #f3b14e, #f0c46a); }
+
+      /* ---------- Tables ---------- */
+      .table-wrap {
+        border: 1px solid var(--border); border-radius: var(--radius);
+        background: var(--surface); box-shadow: var(--shadow); overflow: auto;
+      }
+      table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+      thead th {
+        position: sticky; top: 0; z-index: 1;
+        background: var(--surface-3); color: var(--text-muted);
+        font-size: 0.68rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: 0.1em;
+        text-align: left; white-space: nowrap;
+        padding: 0.7rem 1rem; border-bottom: 1px solid var(--border);
+      }
+      tbody td {
+        padding: 0.85rem 1rem; border-bottom: 1px solid var(--border-soft);
+        vertical-align: top;
+      }
+      tbody tr:last-child td { border-bottom: none; }
+      tbody tr { transition: background 0.12s ease; }
+      tbody tr:nth-child(even) td { background: rgba(255, 255, 255, 0.014); }
+      tbody tr:hover td { background: var(--accent-soft); }
+
+      .cell-stack { display: flex; flex-direction: column; gap: 0.15rem; }
+      .cell-micro {
+        font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.09em;
+        color: var(--text-faint);
+      }
+      .mono { font-family: var(--mono); }
+      .dim { color: var(--text-muted); }
+      .strong { color: var(--text); }
+      .case-id {
+        font-family: var(--mono); font-weight: 600; font-size: 0.9rem;
+        color: var(--accent); text-decoration: none;
+      }
+      .case-id:hover { text-decoration: underline; }
+      .case-title { color: var(--text-muted); font-size: 0.82rem; }
+      .wrap-cell { white-space: normal; min-width: 180px; max-width: 280px; color: var(--text-muted); }
+      .timeline { display: flex; align-items: center; gap: 0.4rem; font-family: var(--mono); font-size: 0.8rem; }
+      .timeline .arr { color: var(--text-faint); }
+      .empty { text-align: center; color: var(--text-faint); padding: 2rem; }
+
+      /* ---------- Status pill ---------- */
+      .pill {
+        display: inline-flex; align-items: center; gap: 0.4rem;
+        padding: 0.25rem 0.6rem; border-radius: 999px;
+        font-size: 0.72rem; font-weight: 600; letter-spacing: 0.03em;
+        white-space: nowrap; border: 1px solid transparent;
+      }
+      .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+      .pill.ok { color: var(--ok); background: var(--ok-bg); border-color: rgba(61, 220, 154, 0.25); }
+      .pill.warn { color: var(--warn); background: var(--warn-bg); border-color: rgba(243, 177, 78, 0.25); }
+      .pill.bad { color: var(--bad); background: var(--bad-bg); border-color: rgba(240, 106, 106, 0.25); }
+      .pill.neutral { color: var(--neutral); background: var(--neutral-bg); border-color: rgba(152, 162, 184, 0.22); }
+
+      /* ---------- Confidence meter ---------- */
+      .conf { display: flex; align-items: center; gap: 0.55rem; font-family: var(--mono); font-size: 0.8rem; }
+      .conf .track { width: 54px; height: 6px; border-radius: 999px; background: var(--surface-3); overflow: hidden; flex: none; }
+      .conf .fill { height: 100%; border-radius: 999px; }
+      .conf.hi .fill { background: var(--ok); } .conf.hi { color: var(--ok); }
+      .conf.mid .fill { background: var(--warn); } .conf.mid { color: var(--warn); }
+      .conf.lo .fill { background: var(--bad); } .conf.lo { color: var(--bad); }
+
+      .tag {
+        display: inline-block; padding: 0.18rem 0.55rem; border-radius: 6px;
+        background: var(--surface-3); border: 1px solid var(--border-soft);
+        font-size: 0.76rem; color: var(--text); white-space: nowrap;
+      }
+
+      /* ---------- Buttons ---------- */
+      .btn {
+        display: inline-flex; align-items: center; gap: 0.35rem;
+        padding: 0.4rem 0.7rem; border-radius: 8px;
+        border: 1px solid var(--border); background: var(--surface-2);
+        color: var(--text); text-decoration: none; font-size: 0.8rem; font-weight: 500;
+        white-space: nowrap; cursor: pointer;
+        transition: border-color 0.12s, background 0.12s, transform 0.12s;
+      }
+      .btn:hover { border-color: var(--accent); background: var(--accent-soft); }
+      .btn:active { transform: translateY(1px); }
+      .btn .arr { transition: transform 0.12s; }
+      .btn:hover .arr { transform: translateX(2px); }
+      .btn.primary {
+        background: linear-gradient(180deg, #5b8cff, #466fe0); border-color: #5b8cff;
+        color: #fff; font-weight: 600; padding: 0.55rem 0.95rem;
+        box-shadow: 0 10px 24px -12px rgba(91, 140, 255, 0.8);
+      }
+      .btn.primary:hover { filter: brightness(1.06); background: linear-gradient(180deg, #5b8cff, #466fe0); }
+
+      /* ---------- Case detail ---------- */
+      .crumb { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.25rem; }
+      .back { display: inline-flex; align-items: center; gap: 0.4rem; color: var(--text-muted); text-decoration: none; font-size: 0.85rem; }
+      .back:hover { color: var(--text); }
+      .page-title { display: flex; align-items: center; gap: 0.8rem; flex-wrap: wrap; margin: 0 0 0.35rem; }
+      .page-title .id { font-family: var(--mono); font-weight: 600; font-size: 1.5rem; color: var(--accent); }
+      .page-title .name { font-size: 1.5rem; font-weight: 600; }
+      .page-sub { color: var(--text-faint); font-size: 0.85rem; margin-bottom: 1.75rem; }
+
+      .grid { display: grid; grid-template-columns: 1.25fr 1fr; gap: 1.25rem; align-items: start; }
+      .card {
+        padding: 1.4rem; border: 1px solid var(--border); border-radius: var(--radius);
+        background: linear-gradient(180deg, var(--surface-2), var(--surface)); box-shadow: var(--shadow);
+      }
+      .card + .card { margin-top: 1.25rem; }
+      .card h3 {
+        margin: 0 0 1.1rem; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.1em;
+        color: var(--text-muted); display: flex; align-items: center; gap: 0.55rem;
+      }
+      .card h3::before { content: ""; width: 4px; height: 0.9rem; border-radius: 4px; background: var(--accent-line); }
+
+      .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 1.1rem 1.5rem; margin: 0; }
+      .kv .field.full { grid-column: 1 / -1; }
+      .field dt { color: var(--text-faint); font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 0.25rem; }
+      .field dd { margin: 0; }
+      .field dd.long { line-height: 1.6; }
+
+      form { display: grid; gap: 1.1rem; }
+      label { display: grid; gap: 0.4rem; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); }
+      input, textarea {
+        padding: 0.7rem 0.8rem; border: 1px solid var(--border); border-radius: 9px;
+        background: #0c0f17; color: var(--text); font: inherit; text-transform: none; letter-spacing: 0;
+        transition: border-color 0.12s, box-shadow 0.12s;
+      }
+      input:focus, textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+      textarea { resize: vertical; }
+      .actions { display: flex; gap: 0.75rem; }
+
+      @media (max-width: 860px) {
+        .grid, .kv { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 700px) {
+        .metrics { grid-template-columns: 1fr 1fr; }
+        header, main { padding-left: 1rem; padding-right: 1rem; }
+      }
     </style>
   </head>
   <body>
-    <header><h1><a href="/">Fake Nomos · Case Dashboard</a></h1></header>
-    <main>{% block content %}{% endblock %}</main>
+    <header>
+      <a class="brand" href="/">
+        <span class="mark">
+          <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></svg>
+        </span>
+        <span class="name"><b>NOMOS</b><span>Case Operations</span></span>
+      </a>
+      <span class="env-chip"><span class="dot"></span>Synthetic data · local</span>
+    </header>
+    <main class="{% block main_class %}{% endblock %}">{% block content %}{% endblock %}</main>
   </body>
 </html>
